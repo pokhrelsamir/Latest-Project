@@ -8,8 +8,10 @@ import os
 import sys
 import django
 
-# Add the project directory to Python path
-sys.path.insert(0, os.path.dirname(__file__))
+# Add the project root to Python path (scripts/setup/ -> project root)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+os.chdir(PROJECT_ROOT)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'academicsys.settings')
 
 django.setup()

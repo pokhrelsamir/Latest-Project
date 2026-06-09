@@ -1,338 +1,58 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Dashboard - Academic System</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="manifest" href="{% static 'manifest.json' %}">
+    {% include 'core/partials/design_head.html' with page_title="My Dashboard - Academic System" %}
+<link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#667eea">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Theme detection script -->
-    <script>
-        (function() {
-            const savedTheme = localStorage.getItem('theme');
-            const theme = savedTheme || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
-    
-    <style>
-        * {
-            font-family: 'Poppins', sans-serif;
-        }
-        
-        .student-dashboard {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        /* Welcome Section */
-        .welcome-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            padding: 2rem;
-            color: white;
-            margin-bottom: 2rem;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .welcome-section::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -10%;
-            width: 300px;
-            height: 300px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-        }
-        
-        .welcome-content {
+<style>
+        .hero-row {
             display: flex;
+            align-items: flex-start;
             justify-content: space-between;
-            align-items: center;
-            position: relative;
-            z-index: 1;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
-        
-        .welcome-text h1 {
-            font-size: 1.8rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .welcome-text p {
-            opacity: 0.9;
-            font-size: 0.95rem;
-        }
-        
-        /* Profile Picture */
-        .welcome-profile {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .profile-pic-container {
-            width: 120px;
-            height: 120px;
+        .hero-profile {
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
             overflow: hidden;
-            border: 4px solid white;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border: 2px solid var(--border-color);
+            flex-shrink: 0;
         }
-        
-        .profile-pic {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .profile-pic-placeholder {
-            width: 120px;
-            height: 120px;
+        .hero-profile img { width: 100%; height: 100%; object-fit: cover; }
+        .hero-profile-placeholder {
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3rem;
-            font-weight: 700;
-            color: white;
-            border: 4px solid white;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        @media (max-width: 900px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        
-        @media (max-width: 600px) {
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .stat-card {
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 1.5rem;
-            border: 1px solid var(--border-color);
-            transition: all 0.3s ease;
-        }
-        
-         .stat-card:hover {
-             transform: translateY(-5px);
-             box-shadow: var(--shadow-lg);
-             background: var(--bg-card-hover);
-         }
-        
-        .stat-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
+            background: var(--ds-gradient);
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .stat-icon.blue { background: #dbeafe; }
-        .stat-icon.green { background: #d1fae5; }
-        .stat-icon.purple { background: #ede9fe; }
-        .stat-icon.orange { background: #fef3c7; }
-        
-        .stat-value {
-            font-size: 2rem;
             font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 0.3rem;
+            border: 2px solid var(--border-color);
         }
-        
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        /* Charts Section */
-        .charts-section {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        @media (max-width: 900px) {
-            .charts-section {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .chart-card {
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 1.5rem;
-            border: 1px solid var(--border-color);
-        }
-        
-        .chart-card h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .chart-container {
-            position: relative;
-            height: 250px;
-        }
-        
-        /* Results Table */
-        .results-section {
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 1.5rem;
-            border: 1px solid var(--border-color);
-        }
-        
-        .results-section h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .results-table th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-        
-        .results-table th:first-child {
-            border-radius: 10px 0 0 10px;
-        }
-        
-        .results-table th:last-child {
-            border-radius: 0 10px 10px 0;
-        }
-        
-        .results-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-        
-        .results-table tr:last-child td {
-            border-bottom: none;
-        }
-        
-         .results-table tr:hover {
-             background: var(--table-hover);
-         }
-        
+        .terminal-chip.visible { display: inline-flex; }
+        .chart-wrap { position: relative; width: 100%; min-height: 260px; }
+        .chart-wrap canvas { max-height: 300px; }
         .grade-badge {
             display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
+            padding: 0.25rem 0.65rem;
+            border-radius: 999px;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: var(--ds-text-xs);
         }
-        
-        .grade-badge.pass {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        
-        .grade-badge.fail {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        
-        /* Navigation for Students */
-        .student-nav {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-        
-        .nav-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.8rem 1.5rem;
-            background: var(--card-bg);
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            color: var(--text-primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        
-        .nav-btn:hover {
-            border-color: #667eea;
-            color: #667eea;
-        }
-        
-        .nav-btn.primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-        }
-        
-        .nav-btn.primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-secondary);
-        }
-        
-         .no-data svg {
-             width: 80px;
-             height: 80px;
-             margin-bottom: 1rem;
-             opacity: 0.5;
-         }
-         
+        .grade-badge.pass { background: rgba(16, 185, 129, 0.15); color: var(--ds-success); }
+        .grade-badge.fail { background: rgba(239, 68, 68, 0.12); color: var(--ds-danger); }
+        .no-data { text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); }
+        .no-data svg { width: 64px; height: 64px; margin-bottom: 0.75rem; opacity: 0.45; }
+
          /* Notifications Dropdown */
          .notifications-btn:hover {
              border-color: #667eea !important;
@@ -579,9 +299,9 @@
     </style>
 </head>
 
-<body>
+<body class="app-page">
     <!-- Navbar -->
-     <nav class="navbar">
+     <nav class="navbar app-nav-style">
          <h2 class="logo">🎓 AcadStat </h2>
          <div class="nav-links">
              <a href="/">Home</a>
@@ -619,7 +339,7 @@
                  </div>
              </div>
              
-             <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+             <button class="theme-toggle ds-toggle" id="themeToggle" aria-label="Toggle theme">
                  <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                      <circle cx="12" cy="12" r="5"/>
                      <line x1="12" y1="1" x2="12" y2="3"/>
@@ -638,139 +358,227 @@
          </div>
      </nav>
 
-    <!-- Page Content -->
-    <div class="container">
-        <div class="student-dashboard">
-            
-            {% if error %}
+    <main class="app-shell app-shell--wide">
+        {% if error %}
+        <section class="section-card fade-in">
             <div class="no-data">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <h3>{{ error }}</h3>
-                <p>Please contact your administrator.</p>
+                <i class="fas fa-exclamation-circle" style="font-size:2rem;display:block;margin-bottom:0.5rem;opacity:0.5;"></i>
+                <h3 style="margin:0 0 0.35rem;font-size:var(--ds-text-md);color:var(--text-primary);">{{ error }}</h3>
+                <p style="margin:0;">Please contact your administrator.</p>
             </div>
-            {% else %}
-            
-            <!-- Welcome Section -->
-            <div class="welcome-section">
-                <div class="welcome-content">
-                    <div class="welcome-text">
-                        <h1>Welcome, {{ student.name }}!</h1>
-                        <p>Class: {{ student.student_class }} | Section: {{ student.section }}</p>
-                        <p>Roll No: {{ student.roll_number|default:"N/A" }}</p>
-                        <button class="btn-change-password" onclick="openPasswordModal()" style="margin-top: 10px;">
-                            🔐 Change Password
-                        </button>
-                    </div>
-                    <div class="welcome-profile">
-                        {% if student.image %}
-                        <div class="profile-pic-container">
-                            <img src="{{ student.image.url }}" alt="Profile Picture" class="profile-pic">
-                        </div>
-                        {% else %}
-                        <div class="profile-pic-placeholder">
-                            <span>{{ student.name|first|upper }}</span>
-                        </div>
-                        {% endif %}
+        </section>
+        {% else %}
+
+        <div class="page-hero fade-in">
+            <div class="hero-row">
+                <div>
+                    <h1 class="page-title"><i class="fas fa-user-graduate" style="color:var(--ds-accent);"></i> Welcome, {{ student.name }}</h1>
+                    <p class="page-subtitle">Class {{ student.student_class }} · Section {{ student.section }} · Roll {{ student.roll_number|default:"N/A" }}</p>
+                    <div class="student-chip terminal-chip visible" id="terminalChip">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>{{ selected_terminal }} Terminal selected</span>
                     </div>
                 </div>
+                {% if student.image %}
+                <div class="hero-profile"><img src="{{ student.image.url }}" alt="{{ student.name }}"></div>
+                {% else %}
+                <div class="hero-profile-placeholder">{{ student.name|first|upper }}</div>
+                {% endif %}
             </div>
-            
-            <!-- Stats Grid -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon blue">📚</div>
-                    <div class="stat-value">{{ total_subjects }}</div>
-                    <div class="stat-label">Subjects</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon green">🏆</div>
-                    <div class="stat-value">{{ overall_percentage }}%</div>
-                    <div class="stat-label">Overall Score</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon purple">📊</div>
-                    <div class="stat-value">{{ terminal_marks_obtained|floatformat:0 }}/{{ terminal_total_marks|floatformat:0 }}</div>
-                    <div class="stat-label">Marks ({{ selected_terminal }} Terminal)</div>
+            <div class="actions-bar" style="justify-content:flex-start;border-top:none;padding-top:0;margin-top:0.85rem;">
+                <a href="{% url 'core:gpa_forecasting' %}" class="btn ds ds-primary"><i class="fas fa-chart-line"></i> GPA Forecasting</a>
+                <button type="button" class="btn ds ds-ghost" onclick="openPasswordModal()"><i class="fas fa-lock"></i> Change Password</button>
+            </div>
+        </div>
+
+        <div class="stats-grid fade-in">
+            <div class="stat-card">
+                <div class="stat-icon-wrap accent"><i class="fas fa-book"></i></div>
+                <div class="stat-label">Subjects</div>
+                <div class="stat-value">{{ total_subjects }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrap success"><i class="fas fa-trophy"></i></div>
+                <div class="stat-label">Overall Score</div>
+                <div class="stat-value">{{ overall_percentage }}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrap info"><i class="fas fa-chart-line"></i></div>
+                <div class="stat-label">{{ selected_terminal }} Terminal</div>
+                <div class="stat-value">{{ terminal_marks_obtained|floatformat:0 }}/{{ terminal_total_marks|floatformat:0 }}</div>
+            </div>
+        </div>
+
+        <section class="section-card fade-in">
+            <div class="card-head">
+                <span class="step-badge">1</span>
+                <div>
+                    <h2 class="section-title">Select Terminal</h2>
+                    <p class="card-subtitle">Filter the results table below</p>
                 </div>
             </div>
-            
-            <!-- Terminal Selection Section -->
-            <div class="terminal-selection-section" style="margin-bottom: 2rem;">
-                <div class="card" style="background: var(--card-bg); border-radius: 16px; padding: 1.5rem; border: 1px solid var(--border-color);">
-                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                        📖 Subject Marks by Terminal
-                    </h3>
-                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                        <label for="terminalSelect" style="font-weight: 500; color: var(--text-secondary);">Select Terminal:</label>
-                        <select id="terminalSelect" onchange="changeTerminal(this.value)" style="padding: 0.6rem 1.2rem; border-radius: 10px; border: 2px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 1rem; cursor: pointer;">
-                            {% for terminal in terminal_choices %}
-                            <option value="{{ terminal }}" {% if terminal == selected_terminal %}selected{% endif %}>{{ terminal }} Terminal</option>
-                            {% endfor %}
-                        </select>
+            <div class="form-group ds" style="max-width:280px;">
+                <label for="terminalSelect">Terminal / Exam</label>
+                <select id="terminalSelect" onchange="changeTerminal(this.value)">
+                    {% for terminal in terminal_choices %}
+                    <option value="{{ terminal }}" {% if terminal == selected_terminal %}selected{% endif %}>{{ terminal }} Terminal</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <p class="form-hint">Charts below show all terminals; the table reflects your selection.</p>
+        </section>
+
+        {% if has_chart_data %}
+        <div class="ds-grid two-col fade-in">
+            <section class="section-card">
+                <div class="card-head">
+                    <span class="step-badge">2</span>
+                    <div>
+                        <h2 class="section-title">Terminal-wise Performance</h2>
+                        <p class="card-subtitle">Your % per terminal — one line per subject</p>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Charts Section -->
-            {% if terminal_data %}
-            <div class="charts-section">
-                <!-- Terminal Performance Chart -->
-                <div class="chart-card">
-                    <h3>📈 Terminal-wise Performance</h3>
-                    <div class="chart-container">
-                        <canvas id="terminalChart"></canvas>
+                <div class="chart-wrap">
+                    <canvas id="terminalChart" aria-label="Terminal-wise performance line chart"></canvas>
+                </div>
+            </section>
+            <section class="section-card">
+                <div class="card-head">
+                    <span class="step-badge">3</span>
+                    <div>
+                        <h2 class="section-title">Subject-wise Performance</h2>
+                        <p class="card-subtitle">Your % per subject — coloured by terminal</p>
                     </div>
                 </div>
-                
-                <!-- Subject Performance Chart -->
-                <div class="chart-card">
-                    <h3>📊 Subject-wise Performance</h3>
-                    <div class="chart-container">
-                        <canvas id="subjectChart"></canvas>
-                    </div>
+                <div class="chart-wrap">
+                    <canvas id="subjectChart" aria-label="Subject-wise performance line chart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        {{ terminal_wise_chart|json_script:"terminal-chart-data" }}
+        {{ subject_wise_chart|json_script:"subject-chart-data" }}
+
+        <script>
+        (function() {
+            function cssVar(name, fallback) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+            }
+            function chartTheme() {
+                return {
+                    text: cssVar('--text-secondary', '#94a3b8'),
+                    grid: cssVar('--border-color', 'rgba(148,163,184,0.2)'),
+                    title: cssVar('--text-primary', '#e2e8f0'),
+                };
+            }
+            function lineOptions(yLabel) {
+                const theme = chartTheme();
+                return {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: theme.text,
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                                boxWidth: 12,
+                                padding: 14,
+                            },
+                        },
+                        tooltip: {
+                            backgroundColor: cssVar('--bg-card', '#1e293b'),
+                            titleColor: theme.title,
+                            bodyColor: theme.text,
+                            borderColor: theme.grid,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(ctx) {
+                                    const v = ctx.parsed.y;
+                                    return ' ' + ctx.dataset.label + ': ' + (v != null ? v + '%' : '—');
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: theme.text, font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } },
+                            grid: { color: theme.grid },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: { display: true, text: yLabel, color: theme.text, font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } },
+                            ticks: { color: theme.text, callback: function(v) { return v + '%'; }, font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } },
+                            grid: { color: theme.grid },
+                        },
+                    },
+                };
+            }
+            function buildLineChart(canvasId, dataId, yLabel) {
+                const el = document.getElementById(canvasId);
+                const dataEl = document.getElementById(dataId);
+                if (!el || !dataEl) return null;
+                const data = JSON.parse(dataEl.textContent);
+                data.datasets = data.datasets.map(function(ds) {
+                    return Object.assign({ borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, spanGaps: true }, ds);
+                });
+                return new Chart(el, { type: 'line', data: data, options: lineOptions(yLabel) });
+            }
+            let terminalChart = buildLineChart('terminalChart', 'terminal-chart-data', 'Your %');
+            let subjectChart = buildLineChart('subjectChart', 'subject-chart-data', 'Your %');
+            window.onThemeChange = function() {
+                if (terminalChart) terminalChart.destroy();
+                if (subjectChart) subjectChart.destroy();
+                terminalChart = buildLineChart('terminalChart', 'terminal-chart-data', 'Your %');
+                subjectChart = buildLineChart('subjectChart', 'subject-chart-data', 'Your %');
+            };
+        })();
+        </script>
+        {% endif %}
+
+        <section class="section-card fade-in">
+            <div class="card-head">
+                <span class="step-badge">{% if has_chart_data %}4{% else %}2{% endif %}</span>
+                <div>
+                    <h2 class="section-title">My Results</h2>
+                    <p class="card-subtitle">{{ selected_terminal }} Terminal — marks entered by your teachers</p>
                 </div>
             </div>
-            {% endif %}
-            
-            <!-- Results Table -->
             {% if student_results %}
-            <div class="results-section">
-                <h3>📋 My Results - {{ selected_terminal }} Terminal</h3>
-                <table class="results-table">
+            <div class="table-wrap">
+                <table class="ds-table">
+                    <colgroup>
+                        <col style="width:3rem">
+                        <col class="student-col">
+                        <col class="num">
+                        <col class="num">
+                        <col class="num">
+                        <col class="num">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th>S.N.</th>
-                            <th>Subject</th>
-                            <th>Terminal</th>
-                            <th>Marks</th>
-                            <th>Percentage</th>
-                            <th>Grade</th>
+                            <th class="num">S.N.</th>
+                            <th class="student-col">Subject</th>
+                            <th class="num">Terminal</th>
+                            <th class="num">Marks</th>
+                            <th class="num">%</th>
+                            <th class="num">Grade</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for result in student_results %}
                         <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td>{{ result.subject.name }}</td>
-                            <td>{{ result.terminal }}</td>
-                            <td>{{ result.marks_obtained|floatformat:1 }}/{{ result.total_marks|floatformat:1 }}</td>
-                            <td>
-                                {% widthratio result.marks_obtained result.total_marks 100 as pct %}
-                                {{ pct|floatformat:1 }}%
+                            <td class="num">{{ forloop.counter }}</td>
+                            <td class="student-col"><strong>{{ result.subject.name }}</strong></td>
+                            <td class="num">{{ result.terminal }}</td>
+                            <td class="num"><span class="cell-value">{{ result.marks_obtained|floatformat:1 }}/{{ result.total_marks|floatformat:1 }}</span></td>
+                            <td class="num">
+                                <span class="cell-value">{{ result.percentage|floatformat:1 }}%</span>
                             </td>
-                            <td>
-                                {% widthratio result.marks_obtained result.total_marks 100 as pct %}
-                                {% with pct|add:0 as pct_num %}
-                                {% if pct_num >= 40 %}
-                                <span class="grade-badge pass">P</span>
-                                {% else %}
-                                <span class="grade-badge fail">F</span>
-                                {% endif %}
-                                {% endwith %}
+                            <td class="num">
+                                <span class="grade-badge {% if result.is_pass %}pass{% else %}fail{% endif %}">{{ result.pass_fail }}</span>
                             </td>
                         </tr>
                         {% endfor %}
@@ -778,162 +586,15 @@
                 </table>
             </div>
             {% else %}
-            <div class="no-data">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                </svg>
-                <h3>No Results for {{ selected_terminal }} Terminal</h3>
-                <p>Your exam results for {{ selected_terminal }} terminal will appear here once they are published.</p>
+            <div class="empty-state">
+                <i class="fas fa-clipboard-list"></i>
+                <p style="margin:0;">No results for {{ selected_terminal }} Terminal yet.</p>
             </div>
             {% endif %}
-            
-            {% endif %}
-        </div>
-    </div>
+        </section>
 
-    <!-- Charts Data -->
-    <script>
-        const terminalData = {{ terminal_data_json|safe }};
-        const subjectData = {{ subject_data_json|safe }};
-    </script>
-    
-    <!-- Chart Initialization -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Theme toggle
-            const themeToggle = document.getElementById('themeToggle');
-            const html = document.documentElement;
-            
-            updateThemeIcon(html.getAttribute('data-theme'));
-            
-            themeToggle.addEventListener('click', function() {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateThemeIcon(newTheme);
-                
-                // Update charts for theme
-                if (window.terminalChart) window.terminalChart.destroy();
-                if (window.subjectChart) window.subjectChart.destroy();
-                initCharts(newTheme);
-            });
-            
-            function updateThemeIcon(theme) {
-                const sunIcon = themeToggle.querySelector('.sun-icon');
-                const moonIcon = themeToggle.querySelector('.moon-icon');
-                if (theme === 'dark') {
-                    sunIcon.style.display = 'block';
-                    moonIcon.style.display = 'none';
-                } else {
-                    sunIcon.style.display = 'none';
-                    moonIcon.style.display = 'block';
-                }
-            }
-            
-            function initCharts(theme) {
-                const isDark = theme === 'dark';
-                const textColor = isDark ? '#e2e8f0' : '#334155';
-                const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-                
-                // Terminal Chart
-                const terminalCtx = document.getElementById('terminalChart');
-                if (terminalCtx && typeof terminalData !== 'undefined') {
-                    const terminals = Object.keys(terminalData);
-                    const percentages = terminals.map(t => terminalData[t].percentage);
-                    
-                    window.terminalChart = new Chart(terminalCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: terminals.map(t => t + ' Terminal'),
-                            datasets: [{
-                                label: 'Percentage (%)',
-                                data: percentages,
-                                backgroundColor: [
-                                    'rgba(102, 126, 234, 0.8)',
-                                    'rgba(118, 75, 162, 0.8)',
-                                    'rgba(236, 72, 153, 0.8)',
-                                    'rgba(34, 197, 94, 0.8)'
-                                ],
-                                borderRadius: 8
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: 100,
-                                    ticks: { color: textColor },
-                                    grid: { color: gridColor }
-                                },
-                                x: {
-                                    ticks: { color: textColor },
-                                    grid: { display: false }
-                                }
-                            }
-                        }
-                    });
-                }
-                
-                // Subject Chart
-                const subjectCtx = document.getElementById('subjectChart');
-                if (subjectCtx && typeof subjectData !== 'undefined' && Object.keys(subjectData).length > 0) {
-                    const subjects = Object.keys(subjectData);
-                    const avgPercentages = subjects.map(s => {
-                        const marks = subjectData[s];
-                        return marks.reduce((sum, m) => sum + m.percentage, 0) / marks.length;
-                    });
-                    
-                    window.subjectChart = new Chart(subjectCtx, {
-                        type: 'line',
-                        data: {
-                            labels: subjects,
-                            datasets: [{
-                                label: 'Average %',
-                                data: avgPercentages,
-                                borderColor: 'rgba(102, 126, 234, 1)',
-                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                                fill: true,
-                                tension: 0.4,
-                                pointBackgroundColor: 'rgba(102, 126, 234, 1)',
-                                pointRadius: 6
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: 100,
-                                    ticks: { color: textColor },
-                                    grid: { color: gridColor }
-                                },
-                                x: {
-                                    ticks: { color: textColor },
-                                    grid: { display: false }
-                                }
-                            }
-                        }
-                    });
-                }
-            }
-            
-            // Initialize charts
-            initCharts(html.getAttribute('data-theme'));
-        });
-    </script>
+        {% endif %}
+    </main>
     
     <!-- Password Change Modal -->
     <div class="password-modal-overlay" id="passwordModal">
@@ -966,10 +627,6 @@
     </div>
     
     <script>
-        // Pass Django data to JavaScript
-        const terminalDataJson = '{{ terminal_data_json|escapejs }}';
-        const subjectDataJson = '{{ subject_data_json|escapejs }}';
-        
         // Password Modal Functions
         function openPasswordModal() {
             document.getElementById('passwordModal').classList.add('active');
@@ -1248,5 +905,7 @@
             });
         }
     </script>
+
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

@@ -1,12 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teachers List - Academic System</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% include 'core/partials/design_head.html' with page_title="Teachers List - Academic System" %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <script>
         (function() {
@@ -202,7 +198,7 @@
     </style>
 </head>
 
-<body>
+<body class="app-page">
     <nav class="navbar">
         <h2 class="logo">🎓 AcadStat</h2>
         <div class="nav-links">
@@ -243,7 +239,7 @@
 
             <div class="form-card">
                 <h2>👥 Teachers Management</h2>
-                <p>View all teachers and their subject/student assignments</p>
+                <p>View all teachers and their subject/student assignments. Login format: <code>firstname.lastname</code> · default password: <code>pass</code></p>
 
                 {% if messages %}
                     {% for message in messages %}
@@ -289,7 +285,9 @@
                                     <div class="teacher-name">{{ teacher.get_full_name }}</div>
                                     <div class="teacher-email">{{ teacher.email|default:"No email" }}</div>
                                 </td>
-                                <td>{{ teacher.user.username }}</td>
+                                <td>
+                                    <code style="font-size:var(--ds-text-xs);background:var(--bg-secondary);padding:0.2rem 0.45rem;border-radius:6px;">{{ teacher.user.username }}</code>
+                                </td>
                                 <td>
                                     <div class="subjects-list">
                                         {% for subject in teacher.subjects.all %}
@@ -310,12 +308,6 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ teacher.joining_date|date:"M d, Y" }}</td>
-                                <td>
-                                    <a href="/admin/core/teacher/{{ teacher.id }}/change/" class="action-btn" target="_blank">
-                                        <i class="fas fa-edit"></i>
-                                        Edit
-                                    </a>
-                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -325,7 +317,7 @@
                         <i class="fas fa-users"></i>
                         <h4>No teachers found</h4>
                         <p>Create teacher accounts through Django Admin or use the management command.</p>
-                        <a href="/admin/core/teacher/add/" class="action-btn" target="_blank">
+                        <a href="{% url 'teacher_leave_create' %}" class="action-btn" target="_blank">
                             <i class="fas fa-plus"></i>
                             Add Teacher
                         </a>
@@ -365,5 +357,7 @@
             localStorage.setItem('theme', newTheme);
         });
     </script>
+
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

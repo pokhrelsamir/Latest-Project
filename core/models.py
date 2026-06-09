@@ -788,11 +788,21 @@ class Result(models.Model):
     def __str__(self):
         return f"{self.student.name} – {self.subject.name} ({self.get_terminal_display()}): {self.marks_obtained}"
 
+    PASS_MARK_PERCENT = 40
+
     @property
     def percentage(self):
         if self.total_marks > 0:
             return round((self.marks_obtained / self.total_marks) * 100, 2)
         return 0
+
+    @property
+    def is_pass(self):
+        return self.percentage >= self.PASS_MARK_PERCENT
+
+    @property
+    def pass_fail(self):
+        return 'P' if self.is_pass else 'F'
 
     @property
     def grade(self):
@@ -1311,6 +1321,19 @@ class UserRole(models.Model):
 
     class Meta:
         ordering = ['code']
+
+    def __str__(self):
+        return self.name
+
+
+class Branch(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
 
     def __str__(self):
         return self.name

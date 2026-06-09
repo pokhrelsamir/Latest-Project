@@ -1,12 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Materials - Academic System</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {% include 'core/partials/design_head.html' with page_title="Course Materials - Academic System" %}
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script>
         (function() {
@@ -351,7 +347,7 @@
     </style>
 </head>
 
-<body>
+<body class="app-page">
     <nav class="navbar">
         <h2 class="logo">🎓 AcadStat</h2>
         <div class="nav-links">
@@ -628,5 +624,7 @@
             // (You can add empty state logic here if needed)
         }
     </script>
+
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

@@ -12,6 +12,7 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('change-password/', views.change_password, name='change_password'),
+    path('gpa-forecasting/', views.student_gpa_forecasting, name='gpa_forecasting'),
 
     # ── Global Search ─────────────────────────────────────────────────────────
     path('search/', views.global_search, name='global_search'),
@@ -25,6 +26,11 @@ urlpatterns = [
     path('api/results/', views.api_results, name='api_results'),
     path('api/results/<int:result_id>/', views.api_result_detail, name='api_result_detail'),
     path('api/students/', views.api_students, name='api_students'),
+    path('api/students/by-subject/<int:subject_id>/', views.api_students_by_subject, name='api_students_by_subject'),
+    path('api/student-terminal-marks/', views.api_student_terminal_marks, name='api_student_terminal_marks'),
+    path('api/students/by-class-subject/', views.api_students_by_class_subject, name='api_students_by_class_subject'),
+    path('api/subject-students-marks/<int:subject_id>/', views.api_subject_students_marks, name='api_subject_students_marks'),
+    path('api/add-marks-bulk/', views.api_add_marks_bulk, name='api_add_marks_bulk'),
 
     # ── Result Lock ───────────────────────────────────────────────────────────
     path('lock-result/<int:result_id>/', views.lock_result, name='lock_result'),

@@ -50,6 +50,9 @@ class ResultForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['terminal'].choices = TERMINAL_CHOICES
         if request and hasattr(request, 'teacher') and request.teacher:
+            teacher = request.teacher
+            self.fields['student'].queryset = teacher.students.all().order_by('name')
+            self.fields['subject'].queryset = teacher.subjects.all().order_by('name')
             self.fields['total_marks'].disabled = True
             self.fields['total_marks'].widget.attrs['readonly'] = True
             self.fields['total_marks'].widget.attrs['style'] = (
@@ -603,3 +606,120 @@ class TicketCommentForm(forms.Form):
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
+
+
+class StudentAdminForm(forms.ModelForm):
+    """Admin form — class/semester choices depend on education level."""
+
+    SCHOOL_CLASS_CHOICES = [(str(n), str(n)) for n in range(1, 11)]
+    COLLEGE_CLASS_CHOICES = [('XI', 'XI'), ('XII', 'XII')]
+    BACHELOR_SEMESTER_CHOICES = [
+        ('1', '1st Semester'),
+        ('2', '2nd Semester'),
+        ('3', '3rd Semester'),
+        ('4', '4th Semester'),
+        ('5', '5th Semester'),
+        ('6', '6th Semester'),
+        ('7', '7th Semester'),
+        ('8', '8th Semester'),
+    ]
+
+    class Meta:
+        model = Student
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['student_class'].widget.attrs['class'] = 'student-level-select'
+        self.fields['semester'].widget.attrs['class'] = 'student-level-select'
+        self.fields['level'].widget.attrs['class'] = 'student-level-trigger'
+        self._configure_for_level(self._current_level())
+
+    def _current_level(self):
+        if self.data.get('level'):
+            return self.data.get('level')
+        if self.instance.pk:
+            return self.instance.level
+        return self.initial.get('level', Student.LEVEL_SCHOOL)
+
+    def _level_select(self, choices):
+        return forms.Select(choices=choices, attrs={'class': 'student-level-select'})
+
+    def _configure_for_level(self, level):
+        empty = [('', '---------')]
+
+        self.fields['semester'] = forms.CharField(
+            label='Student Semester',
+            required=False,
+            widget=self._level_select(empty),
+        )
+
+        if level == Student.LEVEL_SCHOOL:
+            self.fields['student_class'] = forms.CharField(
+                label='Student class',
+                required=True,
+                widget=self._level_select(empty + self.SCHOOL_CLASS_CHOICES),
+            )
+
+        elif level == Student.LEVEL_COLLEGE:
+            self.fields['student_class'] = forms.CharField(
+                label='Student class',
+                required=True,
+                widget=self._level_select(empty + self.COLLEGE_CLASS_CHOICES),
+            )
+
+        elif level == Student.LEVEL_BACHELOR:
+            self.fields['semester'] = forms.CharField(
+                label='Student Semester',
+                required=True,
+                widget=self._level_select(empty + self.BACHELOR_SEMESTER_CHOICES),
+            )
+            self.fields['student_class'] = forms.CharField(
+                required=False,
+                widget=forms.HiddenInput(),
+            )
+
+        if self.instance.pk:
+            if level == Student.LEVEL_SCHOOL:
+                cls = self.instance.student_class
+                if cls in {str(n) for n in range(1, 11)}:
+                    self.fields['student_class'].initial = cls
+            elif level == Student.LEVEL_COLLEGE:
+                if self.instance.student_class in ('XI', 'XII'):
+                    self.fields['student_class'].initial = self.instance.student_class
+            elif level == Student.LEVEL_BACHELOR and self.instance.semester:
+                sem = str(self.instance.semester)
+                digit = ''.join(c for c in sem if c.isdigit())
+                self.fields['semester'].initial = digit if digit else sem
+
+    def clean_student_class(self):
+        level = self.cleaned_data.get('level') or self._current_level()
+        value = self.cleaned_data.get('student_class', '')
+        if level == Student.LEVEL_BACHELOR:
+            return ''
+        if level == Student.LEVEL_SCHOOL:
+            if value not in {str(n) for n in range(1, 11)}:
+                raise forms.ValidationError('Select a class from 1 to 10.')
+        elif level == Student.LEVEL_COLLEGE:
+            if value not in ('XI', 'XII'):
+                raise forms.ValidationError('Select XI or XII for college level.')
+        return value
+
+    def clean_semester(self):
+        level = self.cleaned_data.get('level') or self._current_level()
+        value = self.cleaned_data.get('semester', '')
+        if level in (Student.LEVEL_SCHOOL, Student.LEVEL_COLLEGE):
+            return None
+        if level == Student.LEVEL_BACHELOR:
+            if value not in {str(n) for n in range(1, 9)}:
+                raise forms.ValidationError('Select a semester (1st–8th).')
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        level = cleaned.get('level')
+
+        if level == Student.LEVEL_BACHELOR:
+            cleaned['student_class'] = ''
+
+        return cleaned

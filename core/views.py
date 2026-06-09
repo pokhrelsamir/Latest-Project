@@ -90,14 +90,47 @@ import uuid as _uuid
 # Helper functions for teacher authentication
 def get_teacher_profile(user):
     """Get teacher profile for a user, or None if not a teacher"""
+    if not user.is_authenticated:
+        return None
     try:
         return Teacher.objects.get(user=user, is_active=True)
     except Teacher.DoesNotExist:
-        return None
+        from core.teacher_auth import link_teacher_by_username
+        return link_teacher_by_username(user)
 
 def is_teacher(user):
     """Check if user is a teacher"""
     return get_teacher_profile(user) is not None
+
+
+def get_student_for_user(user, student_id=None):
+    """Resolve Student profile for a logged-in user (by id or username match)."""
+    if student_id:
+        try:
+            return Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return None
+    username = user.username.lower().strip()
+    for student in Student.objects.all():
+        name = student.name.lower().strip()
+        if name == username or username in name or name in username:
+            return student
+    try:
+        return Student.objects.get(name=user.username)
+    except Student.DoesNotExist:
+        return None
+
+
+ADMIN_PANEL_USERNAME = 'samirpokhrel'
+
+
+def can_access_admin_panel(user):
+    """Admin panel quick action is only for the designated superuser account."""
+    return (
+        user.is_authenticated
+        and user.username == ADMIN_PANEL_USERNAME
+        and user.is_superuser
+    )
 
 def teacher_required(view_func):
     """Decorator to require teacher access"""
@@ -147,9 +180,10 @@ def logout_view(request):
 # 📊 DASHBOARD (MAIN PAGE AFTER LOGIN)
 @login_required
 def dashboard(request):
-    # Check if user is a teacher
+    # Check if user is a teacher (must come before student-name matching)
     teacher = get_teacher_profile(request.user)
     if teacher:
+        request.teacher = teacher
         return teacher_dashboard(request)
 
     # Check if user is a student (has username matching a student)
@@ -183,6 +217,7 @@ def dashboard(request):
         'average_marks': avg_marks,
         'user': request.user,
         'is_admin': True,
+        'show_admin_panel': can_access_admin_panel(request.user),
     }
     return render(request, 'core/dashboard/dashboard.html', context)
 
@@ -229,32 +264,58 @@ def student_dashboard(request, student_id=None):
     total_marks = sum(r.total_marks for r in student_results)
     overall_percentage = (total_marks_obtained / total_marks * 100) if total_marks > 0 else 0
     
-    # Get marks by terminal for chart (still all terminals for chart overview)
-    terminal_data = {}
-    for terminal in ['1st', '2nd', '3rd', 'Final']:
-        terminal_results_all = student_results.filter(terminal=terminal)
-        if terminal_results_all.exists():
-            t_marks = sum(r.marks_obtained for r in terminal_results_all)
-            t_total = sum(r.total_marks for r in terminal_results_all)
-            t_percentage = (t_marks / t_total * 100) if t_total > 0 else 0
-            terminal_data[terminal] = {
-                'obtained': t_marks,
-                'total': t_total,
-                'percentage': round(t_percentage, 1)
-            }
-    
-    # Get subject-wise performance for the SELECTED terminal only (for table display)
-    subject_data = {}
-    for result in terminal_results:
-        if result.subject.name not in subject_data:
-            subject_data[result.subject.name] = []
-        percentage = (result.marks_obtained / result.total_marks * 100) if result.total_marks > 0 else 0
-        subject_data[result.subject.name].append({
-            'terminal': result.terminal,
-            'percentage': round(percentage, 1),
-            'marks': result.marks_obtained,
-            'total': result.total_marks
+    terminals = ['1st', '2nd', '3rd', 'Final']
+
+    # Chart data — all marks entered by teachers for this student
+    subjects_for_charts = []
+    seen_subject_ids = set()
+    for r in student_results.order_by('subject__name'):
+        if r.subject_id not in seen_subject_ids:
+            seen_subject_ids.add(r.subject_id)
+            subjects_for_charts.append(r.subject)
+
+    marks_by_subject_terminal = {}
+    for r in student_results:
+        pct = round(r.marks_obtained / r.total_marks * 100, 1) if r.total_marks > 0 else None
+        marks_by_subject_terminal.setdefault(r.subject_id, {})[r.terminal] = pct
+
+    subject_colors = [
+        '#667eea', '#10b981', '#f59e0b', '#ef4444',
+        '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16',
+    ]
+    term_colors = {
+        '1st': '#667eea', '2nd': '#10b981', '3rd': '#f59e0b', 'Final': '#ef4444',
+    }
+
+    terminal_wise_datasets = []
+    for i, subj in enumerate(subjects_for_charts):
+        color = subject_colors[i % len(subject_colors)]
+        terminal_wise_datasets.append({
+            'label': subj.name,
+            'data': [marks_by_subject_terminal.get(subj.id, {}).get(t) for t in terminals],
+            'borderColor': color,
+            'backgroundColor': color,
+            'pointBackgroundColor': color,
+            'pointBorderColor': color,
+            'tension': 0.35,
+            'fill': False,
         })
+
+    subject_wise_datasets = []
+    for t in terminals:
+        color = term_colors.get(t, '#667eea')
+        subject_wise_datasets.append({
+            'label': f'{t} Terminal',
+            'data': [marks_by_subject_terminal.get(subj.id, {}).get(t) for subj in subjects_for_charts],
+            'borderColor': color,
+            'backgroundColor': color,
+            'pointBackgroundColor': color,
+            'pointBorderColor': color,
+            'tension': 0.35,
+            'fill': False,
+        })
+
+    has_chart_data = student_results.exists()
     
     # Calculate terminal-specific totals (for the filtered view)
     terminal_marks_obtained = sum(r.marks_obtained for r in terminal_results)
@@ -274,12 +335,17 @@ def student_dashboard(request, student_id=None):
         'overall_percentage': round(overall_percentage, 1),
         'terminal_marks_obtained': terminal_marks_obtained,  # For selected terminal only
         'terminal_total_marks': terminal_total_marks,  # For selected terminal only
-        'terminal_data': terminal_data,
-        'subject_data': subject_data,
-        'terminal_data_json': json.dumps(terminal_data),
-        'subject_data_json': json.dumps(subject_data),
+        'has_chart_data': has_chart_data,
         'selected_terminal': selected_terminal,
-        'terminal_choices': ['1st', '2nd', '3rd', 'Final'],
+        'terminal_choices': terminals,
+        'terminal_wise_chart': {
+            'labels': terminals,
+            'datasets': terminal_wise_datasets,
+        },
+        'subject_wise_chart': {
+            'labels': [s.name for s in subjects_for_charts],
+            'datasets': subject_wise_datasets,
+        },
         'user': request.user,
         'is_student': True,
         # Notifications
@@ -291,11 +357,43 @@ def student_dashboard(request, student_id=None):
     return render(request, 'core/dashboard/student_dashboard.html', context)
 
 
+@login_required
+def student_gpa_forecasting(request):
+    """GPA / CGPA forecasting, goals, recovery planner, and risk analysis for students."""
+    from core.gpa_forecasting import build_gpa_forecast
+
+    if get_teacher_profile(request.user):
+        messages.info(request, 'GPA Forecasting is available on the student dashboard.')
+        return redirect('core:dashboard')
+
+    student = get_student_for_user(request.user)
+    if not student:
+        messages.error(request, 'Student profile not found.')
+        return redirect('core:dashboard')
+
+    target_raw = request.GET.get('target', '3.5').strip()
+    try:
+        target_cgpa = max(0.0, min(4.0, float(target_raw)))
+    except (ValueError, TypeError):
+        target_cgpa = 3.5
+
+    forecast = build_gpa_forecast(student, target_cgpa)
+    context = {
+        'student': student,
+        'user': request.user,
+        'is_student': True,
+        'target_cgpa': target_cgpa,
+        **forecast,
+    }
+    return render(request, 'core/dashboard/gpa_forecasting.html', context)
+
+
 # 👨‍🏫 TEACHER DASHBOARD
 @teacher_required
 def teacher_dashboard(request):
     """Teacher dashboard with restricted access to their subjects"""
-    teacher = request.teacher
+    teacher = getattr(request, 'teacher', None) or get_teacher_profile(request.user)
+    request.teacher = teacher
 
     # Get teacher's subjects
     teacher_subjects = teacher.subjects.all()
@@ -323,8 +421,11 @@ def teacher_dashboard(request):
         'average_marks': avg_marks,
         'user': request.user,
         'is_teacher': True,
+        'show_add_marks': True,
         'teacher_subjects': teacher_subjects,
         'teacher_students': teacher_students[:10],  # Show recent students
+        'no_subjects_assigned': not teacher_subjects.exists(),
+        'no_students_assigned': not teacher_students.exists(),
     }
     return render(request, 'core/dashboard/teacher_dashboard.html', context)
 
@@ -358,164 +459,256 @@ def teachers_list(request):
     return render(request, 'core/dashboard/teachers_list.html', context)
 
 
-# ➕ ADD MARKS
-@login_required
+# ➕ ADD MARKS - Teachers only
+@teacher_required
 def add_marks(request):
-    # Check if user is a teacher and restrict subjects accordingly
-    teacher = get_teacher_profile(request.user)
-    is_teacher_user = teacher is not None
-    
-    # Attach teacher to request for form access
-    if teacher:
-        request.teacher = teacher
+    from core.models import TERMINAL_CHOICES
 
-    if is_teacher_user:
-        # Teacher can only access their assigned subjects and students
-        subjects = teacher.subjects.all().values('id', 'name', 'total_marks')
-        subject_options = list(subjects)
-        teacher_students = teacher.students.all()
-        
-        # Create subject total marks mapping for JS
-        subject_total_map = {s['id']: s['total_marks'] for s in subject_options}
-        
-        # Order education levels: school (1-10) -> college (XI-XII) -> bachelor
-        LEVEL_ORDER = {'school': 0, 'college': 1, 'bachelor': 2}
-        teacher_levels = sorted(teacher.levels.all(), key=lambda lvl: LEVEL_ORDER.get(lvl.code, 99))
-    else:
-        # Admin can access all
-        subjects = Subject.objects.all().values('id', 'name', 'total_marks')
-        subject_options = list(subjects)
-        teacher_students = None
-        subject_total_map = {s['id']: s['total_marks'] for s in subject_options}
+    teacher = getattr(request, 'teacher', None) or get_teacher_profile(request.user)
+    request.teacher = teacher
 
-    # Prepare level/semester hierarchy for JS filtering based on teacher's assigned levels
-    levels_hierarchy = {}
-    available_levels = []
+    subject_options = list(teacher.subjects.all().order_by('name').values('id', 'name', 'total_marks', 'code'))
+    student_options = list(teacher.students.all().order_by('name').values('id', 'name', 'roll_number', 'student_class', 'section'))
+    subject_total_map = {str(s['id']): s['total_marks'] for s in subject_options}
+    subject_name_map = {str(s['id']): s['name'] for s in subject_options}
 
-    if teacher:
-        # Teacher's allowed education levels (already sorted above)
-        # Build available_levels list from teacher.levels
-        for level_obj in teacher_levels:
-            available_levels.append({
-                'value': level_obj.code,
-                'label': level_obj.display_name  # Use display_name to show proper labels
-            })
-
-        # Get all students assigned to this teacher
-        # (already defined as teacher_students above)
-        # teacher_students = teacher.students.all() is already set in the if block above
-
-        # Build hierarchy for each level the teacher is allowed to teach
-        if teacher_students:
-            for level_obj in teacher_levels:
-                level_code = level_obj.code
-                # Filter students by this level
-                level_students = teacher_students.filter(level=level_code)
-
-                if level_code == 'bachelor':
-                    # Further filter by semesters the teacher teaches (if any)
-                    if teacher.semesters.exists():
-                        # Get semester numbers as strings for CharField comparison
-                        teacher_semester_numbers = [str(s) for s in teacher.semesters.values_list('number', flat=True)]
-                        level_students = level_students.filter(semester__in=teacher_semester_numbers)
-                    # Get distinct semesters from the filtered students
-                    semesters = level_students.values_list('semester', flat=True).distinct()
-                    level_data = {'type': 'semester', 'options': []}
-                    for sem in semesters:
-                        if not sem:
-                            continue
-                        sem_students = level_students.filter(semester=sem).values('id', 'name', 'roll_number')
-                        level_data['options'].append({
-                            'value': str(sem),
-                            'label': str(sem),  # Just the semester number
-                            'students': list(sem_students)
-                        })
-                    levels_hierarchy[level_code] = level_data
-                else:
-                    # For school/college: group by class
-                    classes = level_students.values_list('student_class', flat=True).distinct()
-                    level_data = {'type': 'class', 'options': []}
-                    for cls in classes:
-                        cls_students = level_students.filter(student_class=cls).values('id', 'name', 'roll_number')
-                        level_data['options'].append({
-                            'value': str(cls),
-                            'label': str(cls),  # Just the class identifier (e.g., "9", "XI")
-                            'students': list(cls_students)
-                        })
-                    levels_hierarchy[level_code] = level_data
-    else:
-        # Admin user: no restrictions, leave empty (level dropdown not shown)
-        pass
-    
-    if request.method == "POST":
-        form = ResultForm(request.POST, request=request)
-        if form.is_valid():
-            student = form.cleaned_data['student']
-            subject = form.cleaned_data['subject']
-            terminal = request.POST.get('terminal', '1st')
-            marks_obtained = form.cleaned_data['marks_obtained']
-            total_marks = form.cleaned_data.get('total_marks', 100)
-
-            # Additional validation for teachers
-            if is_teacher_user:
-                if not teacher.can_access_subject(subject):
-                    messages.error(request, "You can only add marks for subjects assigned to you.")
-                    return redirect('/add-marks/')
-                if teacher_students and student not in teacher_students:
-                    messages.error(request, "You can only add marks for students assigned to you.")
-                    return redirect('/add-marks/')
-                # Teachers cannot change total_marks - use subject's configured total
-                if total_marks != subject.total_marks:
-                    messages.error(request, f"Total marks must be {subject.total_marks} for {subject.name}.")
-                    return redirect('/add-marks/')
-
-            existing = Result.objects.filter(
-                student_id=student.id,
-                subject_id=subject.id,
-                terminal=terminal
-            ).first()
-
-            if existing:
-                existing.marks_obtained = marks_obtained
-                existing.total_marks = total_marks
-                existing.save()
-                messages.success(request, f"Marks updated successfully for {student.name}!")
-            else:
-                Result.objects.create(
-                    student=student,
-                    subject=subject,
-                    terminal=terminal,
-                    marks_obtained=marks_obtained,
-                    total_marks=total_marks
-                )
-                messages.success(request, "Marks added successfully!")
-
-            return redirect('/marks-list/')
-        else:
-            error_messages = []
-            for field, errors in form.errors.items():
-                for error in errors:
-                    field_label = form.fields[field].label if form.fields[field].label else field
-                    error_messages.append(f"{field_label}: {error}")
-
-            if not error_messages:
-                error_messages = ["Please correct the errors below."]
-
-            for msg in error_messages:
-                messages.error(request, msg)
-    else:
-        form = ResultForm(request=request)
-        if is_teacher_user and teacher_students is not None:
-            form.fields['student'].queryset = teacher_students
+    if not subject_options:
+        messages.warning(request, 'No subjects assigned to you yet. Ask admin to assign subjects in the admin panel.')
+    if not student_options:
+        messages.warning(request, 'No students assigned to you yet. Ask admin to assign students in the admin panel.')
 
     return render(request, 'core/dashboard/add_marks.html', {
-        'form': form,
         'subject_options': subject_options,
-        'is_teacher': is_teacher_user,
+        'student_options': student_options,
+        'is_teacher': True,
         'teacher': teacher,
-        'available_levels': available_levels,
-        'levels_hierarchy_json': json.dumps(levels_hierarchy),
         'subject_total_map_json': json.dumps(subject_total_map),
+        'subject_name_map_json': json.dumps(subject_name_map),
+        'terminal_choices': TERMINAL_CHOICES,
+        'has_subjects': bool(subject_options),
+        'has_students': bool(student_options),
+    })
+
+
+@login_required
+def api_student_terminal_marks(request):
+    """Load existing marks for a student + terminal (teachers only)."""
+    teacher = get_teacher_profile(request.user)
+    if not teacher:
+        return JsonResponse({'success': False, 'message': 'Access denied. Teachers only.'}, status=403)
+
+    student_id = request.GET.get('student_id')
+    terminal = request.GET.get('terminal', '1st')
+
+    if not student_id:
+        return JsonResponse({'success': False, 'message': 'student_id is required'}, status=400)
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Student not found'}, status=404)
+
+    if not teacher.students.filter(id=student.id).exists():
+        return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
+    subject_ids = teacher.subjects.values_list('id', flat=True)
+
+    marks = []
+    for result in Result.objects.filter(
+        student=student,
+        terminal=terminal,
+        subject_id__in=subject_ids,
+    ).select_related('subject'):
+        marks.append({
+            'id': result.id,
+            'subject_id': result.subject_id,
+            'subject_name': result.subject.name,
+            'marks_obtained': result.marks_obtained,
+            'total_marks': result.subject.total_marks,
+            'percentage': result.percentage,
+            'grade': result.grade,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'student': {
+            'id': student.id,
+            'name': student.name,
+            'roll_number': student.roll_number,
+            'student_class': student.student_class,
+        },
+        'terminal': terminal,
+        'marks': marks,
+    })
+
+
+# 📊 API: Get students filtered by class and subject (for teacher marks entry)
+@login_required
+def api_students_by_class_subject(request):
+    teacher = get_teacher_profile(request.user)
+    class_name = request.GET.get('class', '')
+    subject_id = request.GET.get('subject_id', '')
+
+    if not class_name or not subject_id:
+        return JsonResponse({'success': False, 'message': 'class and subject_id are required'}, status=400)
+
+    try:
+        subject = Subject.objects.get(id=subject_id)
+    except Subject.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Subject not found'}, status=404)
+
+    level = request.GET.get('level', '')
+
+    if teacher:
+        if not teacher.can_access_subject(subject):
+            return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
+        students_qs = teacher.students.all()
+        if level == 'bachelor':
+            students_qs = students_qs.filter(semester=class_name)
+        else:
+            students_qs = students_qs.filter(student_class=class_name)
+    else:
+        if level == 'bachelor':
+            students_qs = Student.objects.filter(semester=class_name)
+        else:
+            students_qs = Student.objects.filter(student_class=class_name)
+
+
+    students_data = []
+    for student in students_qs:
+        existing = {}
+        for terminal_val, _ in Result.TERMINAL_CHOICES:
+            result = Result.objects.filter(student=student, subject=subject, terminal=terminal_val).first()
+            if result:
+                existing[terminal_val] = {
+                    'marks_obtained': result.marks_obtained,
+                    'total_marks': result.total_marks,
+                    'percentage': result.percentage,
+                    'grade': result.grade,
+                    'id': result.id,
+                }
+            else:
+                existing[terminal_val] = None
+        students_data.append({
+            'id': student.id,
+            'name': student.name,
+            'roll_number': student.roll_number,
+            'student_class': student.student_class,
+            'section': student.section,
+            'existing_marks': existing,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'subject': {
+            'id': subject.id,
+            'name': subject.name,
+            'total_marks': subject.total_marks,
+            'code': subject.code,
+        },
+        'class_name': class_name,
+        'level': level,
+        'filter_field': 'semester' if level == 'bachelor' else 'student_class',
+        'students': students_data,
+    })
+
+
+# 📊 API: Get students for a subject (teachers only see their assigned students)
+@login_required
+def api_students_by_subject(request, subject_id):
+    teacher = get_teacher_profile(request.user)
+    
+    try:
+        subject = Subject.objects.get(id=subject_id)
+    except Subject.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Subject not found'}, status=404)
+
+    if teacher:
+        if not teacher.can_access_subject(subject):
+            return JsonResponse({'success': False, 'message': 'Access denied - subject not assigned to you'}, status=403)
+        students = teacher.students.filter(subjects=subject).values('id', 'name', 'roll_number', 'student_class', 'section', 'level', 'email')
+    else:
+        students = Student.objects.filter(subjects=subject).values('id', 'name', 'roll_number', 'student_class', 'section', 'level', 'email')
+
+    results_data = []
+    for student in students:
+        results = Result.objects.filter(student_id=student['id'], subject=subject).values('terminal', 'marks_obtained', 'total_marks')
+        student_results = {}
+        for r in results:
+            student_results[r['terminal']] = {
+                'marks_obtained': r['marks_obtained'],
+                'total_marks': r['total_marks']
+            }
+        results_data.append({
+            **student,
+            'existing_marks': student_results
+        })
+
+    return JsonResponse({
+        'success': True,
+        'subject': {
+            'id': subject.id,
+            'name': subject.name,
+            'total_marks': subject.total_marks,
+            'code': subject.code
+        },
+        'students': results_data
+    })
+
+
+# 📊 API: Get all students with existing marks for selected subject
+@login_required
+def api_subject_students_marks(request, subject_id):
+    teacher = get_teacher_profile(request.user)
+    
+    try:
+        subject = Subject.objects.get(id=subject_id)
+    except Subject.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Subject not found'}, status=404)
+
+    if teacher:
+        if not teacher.can_access_subject(subject):
+            return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
+
+    if teacher:
+        students_qs = teacher.students.all()
+    else:
+        students_qs = Student.objects.filter(result__subject=subject).distinct()
+
+
+    students_data = []
+    for student in students_qs:
+        student_results = {}
+        for terminal_val, terminal_label in Result.TERMINAL_CHOICES:
+            result = Result.objects.filter(student=student, subject=subject, terminal=terminal_val).first()
+            if result:
+                student_results[terminal_val] = {
+                    'marks_obtained': result.marks_obtained,
+                    'total_marks': result.total_marks,
+                    'percentage': result.percentage,
+                    'grade': result.grade
+                }
+            else:
+                student_results[terminal_val] = None
+        
+        students_data.append({
+            'id': student.id,
+            'name': student.name,
+            'roll_number': student.roll_number,
+            'student_class': student.student_class,
+            'section': student.section,
+            'semester': student.semester,
+            'results': student_results
+        })
+
+    return JsonResponse({
+        'success': True,
+        'subject': {
+            'id': subject.id,
+            'name': subject.name,
+            'total_marks': subject.total_marks,
+            'code': subject.code
+        },
+        'students': students_data
     })
 
 
@@ -571,9 +764,27 @@ def marks_list(request):
 def edit_marks(request, mark_id):
     """API endpoint to update marks"""
     try:
-        result = get_object_or_404(Result, id=mark_id)
         data = json.loads(request.body)
-        
+
+        if mark_id == 0:
+            student_id = data.get('student_id')
+            subject_id = data.get('subject_id')
+            terminal = data.get('terminal')
+            if not student_id or not subject_id or not terminal:
+                return JsonResponse(
+                    {'success': False, 'message': 'student_id, subject_id, and terminal are required'},
+                    status=400,
+                )
+            result = Result.objects.filter(
+                student_id=student_id,
+                subject_id=subject_id,
+                terminal=terminal,
+            ).first()
+            if not result:
+                return JsonResponse({'success': False, 'message': 'Marks record not found'}, status=404)
+        else:
+            result = get_object_or_404(Result, id=mark_id)
+
         teacher = get_teacher_profile(request.user)
         marks_obtained = float(data.get('marks_obtained', 0))
         total_marks = float(data.get('total_marks', 100))
@@ -735,7 +946,7 @@ def delete_course_material(request, material_id):
 @login_required
 @require_http_methods(["POST"])
 def change_password(request):
-    """Allow students to change their password"""
+    """Allow students and teachers to change their password"""
     try:
         data = json.loads(request.body)
         current_password = data.get('current_password', '')
@@ -774,8 +985,26 @@ def change_password(request):
 def delete_marks(request, mark_id):
     """API endpoint to delete marks"""
     try:
-        result = get_object_or_404(Result, id=mark_id)
-        
+        if mark_id == 0:
+            data = json.loads(request.body)
+            student_id = data.get('student_id')
+            subject_id = data.get('subject_id')
+            terminal = data.get('terminal')
+            if not student_id or not subject_id or not terminal:
+                return JsonResponse(
+                    {'success': False, 'message': 'student_id, subject_id, and terminal are required'},
+                    status=400,
+                )
+            result = Result.objects.filter(
+                student_id=student_id,
+                subject_id=subject_id,
+                terminal=terminal,
+            ).first()
+            if not result:
+                return JsonResponse({'success': False, 'message': 'Marks record not found'}, status=404)
+        else:
+            result = get_object_or_404(Result, id=mark_id)
+
         # Check teacher permissions
         teacher = get_teacher_profile(request.user)
         if teacher:
@@ -3533,6 +3762,146 @@ def api_students(request):
     return JsonResponse({'students': data})
 
 
+@login_required
+def api_add_marks_bulk(request):
+    if request.method != 'POST':
+        return JsonResponse(
+            {'success': False, 'message': 'Method not allowed'},
+            status=405,
+        )
+
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse(
+            {'success': False, 'message': 'Invalid request payload'},
+            status=400,
+        )
+
+    entries = payload.get('marks') or []
+    if not entries:
+        return JsonResponse(
+            {'success': False, 'message': 'No marks entries provided'},
+            status=400,
+        )
+
+    teacher = get_teacher_profile(request.user)
+    if not teacher:
+        return JsonResponse(
+            {'success': False, 'message': 'Access denied. Teachers only.'},
+            status=403,
+        )
+
+    saved = 0
+    failed = 0
+    errors = []
+
+    for idx, item in enumerate(entries, start=1):
+        student_id = item.get('student')
+        subject_id = item.get('subject')
+        terminal = (item.get('terminal') or '1st').strip()
+        marks_obtained = item.get('marks_obtained')
+        total_marks = item.get('total_marks')
+
+        if not student_id or not subject_id:
+            failed += 1
+            errors.append(f'Entry {idx}: Missing student/subject')
+            continue
+
+        try:
+            student = Student.objects.get(id=student_id)
+            subject = Subject.objects.get(id=subject_id)
+        except (Student.DoesNotExist, Subject.DoesNotExist):
+            failed += 1
+            errors.append(f'Entry {idx}: Invalid student or subject')
+            continue
+
+        if marks_obtained is None or total_marks is None:
+            failed += 1
+            errors.append(f'Entry {idx}: Missing marks values')
+            continue
+
+        try:
+            marks_f = float(marks_obtained)
+            total_f = float(total_marks)
+        except (TypeError, ValueError):
+            failed += 1
+            errors.append(f'Entry {idx}: Non-numeric marks')
+            continue
+
+        if marks_f < 0 or total_f <= 0:
+            failed += 1
+            errors.append(f'Entry {idx}: Invalid marks range')
+            continue
+
+        if not teacher.can_access_subject(subject):
+            failed += 1
+            errors.append(
+                f'Entry {idx} ({student.name}/{subject.name}): Subject not assigned to you'
+            )
+            continue
+        if not teacher.students.filter(id=student.id).exists():
+            failed += 1
+            errors.append(
+                f'Entry {idx} ({student.name}/{subject.name}): Student not assigned to you'
+            )
+            continue
+        if total_f != float(subject.total_marks):
+            failed += 1
+            errors.append(
+                f'Entry {idx} ({student.name}/{subject.name}): '
+                f'Total marks must be {subject.total_marks} for this subject'
+            )
+            continue
+        final_total = subject.total_marks
+
+        existing = Result.objects.filter(
+            student=student,
+            subject=subject,
+            terminal=terminal,
+        ).first()
+
+        if existing:
+            existing.marks_obtained = marks_f
+            existing.total_marks = final_total
+            existing.save()
+        else:
+            Result.objects.create(
+                student=student,
+                subject=subject,
+                terminal=terminal,
+                marks_obtained=marks_f,
+                total_marks=final_total,
+            )
+        saved += 1
+
+    if saved == 0:
+        return JsonResponse(
+            {
+                'success': False,
+                'message': f'Failed to save any marks ({failed} errors)',
+                'saved': saved,
+                'failed': failed,
+                'errors': errors,
+            },
+            status=400,
+        )
+
+    message = f'{saved} marks saved successfully'
+    if failed:
+        message = f'{saved} marks saved. {failed} entries failed.'
+
+    return JsonResponse(
+        {
+            'success': saved > 0 and failed == 0,
+            'message': message,
+            'saved': saved,
+            'failed': failed,
+            'errors': errors or None,
+        }
+    )
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  ADMIN EXPORT — ALL ENTITIES EXCEL
 # ═════════════════════════════════════════════════════════════════════════════
@@ -6182,99 +6551,161 @@ def scheduled_tasks_list(request):
 # %% T10 SMART SUBJECT ANALYSIS %%
 @teacher_required
 def subject_analytics(request):
-    from core.models import QuestionBank, QuestionPaperTemplate
-    teacher         = request.teacher
-    subject_id      = request.GET.get("subject", "").strip()
-    terminal        = request.GET.get("terminal", "all")
+    teacher = request.teacher
+    subject_id_raw = request.GET.get("subject", "").strip()
+    terminal = request.GET.get("terminal", "all")
+
+    subject_id = None
+    if subject_id_raw.isdigit():
+        subject_id = int(subject_id_raw)
 
     teacher_subjects = teacher.subjects.all()
     teacher_students = teacher.students.all()
-    all_subjects = teacher_subjects.order_by("name")
+    all_subjects = list(teacher_subjects.order_by("name"))
 
     base_qs = Result.objects.filter(
-        student__in=teacher_students, subject__in=all_subjects
+        student__in=teacher_students, subject__in=teacher_subjects
     ).select_related("student", "subject")
-    if subject_id:
+    if subject_id is not None:
         base_qs = base_qs.filter(subject_id=subject_id)
 
-    bins_labels = ["0-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-100"]
-    bins = [0] * 7
     pct_list = []
     for r in base_qs:
-        pct = (r.marks_obtained / r.total_marks * 100) if r.total_marks > 0 else 0
-        pct_list.append(pct)
-        if pct < 40:    bins[0] += 1
-        elif pct < 50:  bins[1] += 1
-        elif pct < 60:  bins[2] += 1
-        elif pct < 70:  bins[3] += 1
-        elif pct < 80:  bins[4] += 1
-        elif pct < 90:  bins[5] += 1
-        else:           bins[6] += 1
+        if r.total_marks > 0:
+            pct_list.append(r.marks_obtained / r.total_marks * 100)
 
-    total       = len(pct_list)
-    avg_pct     = round(sum(pct_list) / total, 1) if total else 0
+    total = len(pct_list)
+    avg_pct = round(sum(pct_list) / total, 1) if total else 0
     highest_pct = round(max(pct_list), 1) if pct_list else 0
-    lowest_pct  = round(min(pct_list), 1) if pct_list else 0
-    pass_count  = sum(1 for p in pct_list if p >= 40)
-    pass_rate   = round((pass_count / total) * 100, 1) if total else 0
-    below_40    = sum(1 for p in pct_list if p < 40)
+    lowest_pct = round(min(pct_list), 1) if pct_list else 0
+    pass_count = sum(1 for p in pct_list if p >= 40)
+    pass_rate = round((pass_count / total) * 100, 1) if total else 0
+    below_40 = sum(1 for p in pct_list if p < 40)
 
     insight_lines = []
     if below_40 > 0:
         s = "s" if below_40 > 1 else ""
         insight_lines.append(
-            f"[!] Warning: {below_40} student{s} scored below 40% - consider arranging a remedial class."
+            f"{below_40} student{s} scored below 40% — consider a remedial session."
         )
     if avg_pct >= 80:
-        insight_lines.append(f"Excellent! Class average is {avg_pct}%.")
+        insight_lines.append(f"Excellent class average at {avg_pct}%.")
     elif avg_pct >= 70:
-        insight_lines.append(f"Good progress - class average is {avg_pct}%.")
+        insight_lines.append(f"Good progress — class average is {avg_pct}%.")
     elif avg_pct >= 50:
         insight_lines.append(f"Class average is {avg_pct}%. Focus on weaker students.")
-    else:
-        insight_lines.append(f"Class average is {avg_pct}%. Needs urgent attention.")
+    elif total:
+        insight_lines.append(f"Class average is {avg_pct}%. Needs attention.")
 
     terminals = ["1st", "2nd", "3rd", "Final"]
-    run_terminals = terminals if terminal == "all" else [terminal]
+    run_terminals = terminals if terminal == "all" else (
+        [terminal] if terminal in terminals else terminals
+    )
+
+    chart_subjects = all_subjects
+    if subject_id is not None:
+        chart_subjects = [s for s in all_subjects if s.id == subject_id]
+
+    def _avg_pct(qs):
+        values = [
+            r.marks_obtained / r.total_marks * 100
+            for r in qs if r.total_marks > 0
+        ]
+        return round(sum(values) / len(values), 1) if values else None
+
+    subject_colors = [
+        "#667eea", "#10b981", "#f59e0b", "#ef4444",
+        "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
+    ]
+    term_colors = {
+        "1st": "#667eea", "2nd": "#10b981", "3rd": "#f59e0b", "Final": "#ef4444",
+    }
+
+    terminal_wise_datasets = []
+    for i, subj in enumerate(chart_subjects):
+        color = subject_colors[i % len(subject_colors)]
+        terminal_wise_datasets.append({
+            "label": subj.name,
+            "data": [
+                _avg_pct(base_qs.filter(subject=subj, terminal=t))
+                for t in run_terminals
+            ],
+            "borderColor": color,
+            "backgroundColor": color,
+            "pointBackgroundColor": color,
+            "pointBorderColor": color,
+            "tension": 0.35,
+            "fill": False,
+        })
+
+    subject_wise_datasets = []
+    for t in run_terminals:
+        color = term_colors.get(t, "#667eea")
+        subject_wise_datasets.append({
+            "label": f"{t} Terminal",
+            "data": [
+                _avg_pct(base_qs.filter(subject=subj, terminal=t))
+                for subj in chart_subjects
+            ],
+            "borderColor": color,
+            "backgroundColor": color,
+            "pointBackgroundColor": color,
+            "pointBorderColor": color,
+            "tension": 0.35,
+            "fill": False,
+        })
 
     trender = {}
-    student_result_qs = base_qs.order_by("student__name", "terminal")
-    for r in student_result_qs:
+    for r in base_qs.order_by("student__name", "terminal"):
         sid = r.student.id
         if sid not in trender:
             trender[sid] = {"student": r.student, "marks_by_term": {}}
-        trender[sid]["marks_by_term"][r.terminal] = r.marks_obtained
+        pct = round(r.marks_obtained / r.total_marks * 100, 1) if r.total_marks > 0 else 0
+        trender[sid]["marks_by_term"][r.terminal] = pct
 
     trend_rows = []
     for sid in sorted(trender, key=lambda s: trender[s]["student"].name):
         info = trender[sid]
-        student  = info["student"]
-        mbt      = info["marks_by_term"]
-        prev_vals = [mbt.get(t) for t in terminals[:-1]]
-        if len(prev_vals) >= 2 and prev_vals[-1] is not None and prev_vals[-2] is not None:
-            diff   = prev_vals[-1] - prev_vals[-2]
-            arrow  = "up" if diff > 0.5 else ("down" if diff < -0.5 else "same")
+        mbt = info["marks_by_term"]
+        prev_vals = [mbt.get(t) for t in run_terminals if mbt.get(t) is not None]
+        if len(prev_vals) >= 2:
+            diff = prev_vals[-1] - prev_vals[-2]
+            arrow = "up" if diff > 0.5 else ("down" if diff < -0.5 else "same")
         else:
             arrow = "same"
-        # Build an aligned marks list so the template can iterate without dict keys
-        marks_list = [mbt.get(t) for t in running_terminals]
-        mark_tuples = list(zip(running_terminals, marks_list))
-        trend_rows.append({"student": student, "marks_list": marks_list,
-                           "mark_tuples": mark_tuples, "arrow": arrow})
-
-    available_classes = sorted(set(s.student_class for s in teacher_students))
+        marks_list = [mbt.get(t) for t in run_terminals]
+        trend_rows.append({
+            "student": info["student"],
+            "marks_list": marks_list,
+            "mark_tuples": list(zip(run_terminals, marks_list)),
+            "arrow": arrow,
+        })
 
     return render(request, "core/dashboard/subject_analytics.html", {
-        "subject_obj": Subject.objects.filter(id=subject_id).first(),
-        "subject_id": subject_id, "terminal": terminal,
-        "running_terminals": run_terminals,
-        "total": total, "avg_pct": avg_pct, "highest_pct": highest_pct,
-        "lowest_pct": lowest_pct, "pass_rate": pass_rate,
-        "pass_count": pass_count, "below_40": below_40,
-        "bins_labels": bins_labels, "bins": bins,
-        "trend_rows": trend_rows, "insight_lines": insight_lines,
-        "available_subjects": all_subjects, "available_classes": available_classes,
-        "terminals": terminals, "is_teacher": True,
+        "subject_obj": Subject.objects.filter(id=subject_id).first() if subject_id is not None else None,
+        "subject_id": subject_id_raw,
+        "terminal": terminal,
+        "run_terminals": run_terminals,
+        "total": total,
+        "avg_pct": avg_pct,
+        "highest_pct": highest_pct,
+        "lowest_pct": lowest_pct,
+        "pass_rate": pass_rate,
+        "pass_count": pass_count,
+        "below_40": below_40,
+        "trend_rows": trend_rows,
+        "insight_lines": insight_lines,
+        "available_subjects": all_subjects,
+        "terminals": terminals,
+        "is_teacher": True,
+        "terminal_wise_chart": {
+            "labels": run_terminals,
+            "datasets": terminal_wise_datasets,
+        },
+        "subject_wise_chart": {
+            "labels": [s.name for s in chart_subjects],
+            "datasets": subject_wise_datasets,
+        },
     })
 
 

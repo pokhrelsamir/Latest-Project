@@ -1,22 +1,10 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic System - Home</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Theme detection script - Default to light theme for landing -->
-    <script>
-        (function() {
-            const savedTheme = localStorage.getItem('landingTheme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-        })();
-    </script>
-    
-    <style>
+    {% include 'core/partials/design_head.html' with page_title="Academic System - Home" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
         /* Theme Variables - Light Theme (White + Black Text) */
         :root, [data-theme="light"] {
             --bg-primary: #ffffff;
@@ -61,7 +49,7 @@
         }
         
         body {
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            font-family: var(--ds-font, 'Plus Jakarta Sans', system-ui, sans-serif);
             background-color: var(--bg-primary);
             color: var(--text-primary);
             margin: 0;
@@ -542,7 +530,7 @@
     </style>
 </head>
 
-<body>
+<body class="app-page">
     <nav class="sticky-nav" id="mainNav">
         <div class="logo">
             <a href="#home" style="display: flex; align-items: center;">
@@ -807,55 +795,23 @@
         </div>
     </section>
 
-    <!-- Theme Toggle Script -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const themeToggle = document.getElementById('themeToggle');
-            const html = document.documentElement;
-            
-            updateThemeIcon(html.getAttribute('data-theme'));
-            
-            themeToggle.addEventListener('click', function() {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-                
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('landingTheme', newTheme);
-                updateThemeIcon(newTheme);
-            });
-            
-            function updateThemeIcon(theme) {
-                const sunIcon = themeToggle.querySelector('.sun-icon');
-                const moonIcon = themeToggle.querySelector('.moon-icon');
-                
-                if (theme === 'dark') {
-                    sunIcon.style.display = 'block';
-                    moonIcon.style.display = 'none';
-                } else {
-                    sunIcon.style.display = 'none';
-                    moonIcon.style.display = 'block';
-                }
-            }
-            
             const nav = document.getElementById('mainNav');
-            window.addEventListener('scroll', function() {
-                if (window.scrollY > 50) {
-                    nav.classList.add('scrolled');
-                } else {
-                    nav.classList.remove('scrolled');
-                }
-            });
-            
+            if (nav) {
+                window.addEventListener('scroll', function() {
+                    nav.classList.toggle('scrolled', window.scrollY > 50);
+                });
+            }
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
+                anchor.addEventListener('click', function(e) {
                     e.preventDefault();
                     const target = document.querySelector(this.getAttribute('href'));
-                    if (target) {
-                        target.scrollIntoView({ behavior: 'smooth' });
-                    }
+                    if (target) target.scrollIntoView({ behavior: 'smooth' });
                 });
             });
         });
     </script>
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

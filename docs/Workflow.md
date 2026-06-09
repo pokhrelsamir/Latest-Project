@@ -40,10 +40,19 @@ djangoacadstat/
 │   └── student_images/
 ├── static/
 │   └── css/style.css
-├── manage.py
-├── requirements.txt
-├── Workflow.md
-└── venv/
+├── docs/
+│   ├── Workflow.md
+│   ├── TEACHER_SYSTEM_README.md
+│   └── commands/            # Django, PostgreSQL, Git reference notes
+├── scripts/
+│   ├── setup/               # One-off setup scripts
+│   ├── debug/               # Development/debug utilities
+│   ├── patches/             # One-off code patch scripts
+│   └── migrate_design_system.py
+├── data/
+│   └── backups/             # JSON backup files
+├── samples/
+│   └── bulk_marks_upload/   # Excel upload templates
 ```
 
 ## Project Overview

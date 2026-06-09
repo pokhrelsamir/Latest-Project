@@ -1,4 +1,5 @@
 from django.contrib import admin
+from core.forms import StudentAdminForm
 from .models import (
     Student, Subject, Result, Teacher, CourseMaterial,
     EducationLevel, Semester, AcademicYear, Department,
@@ -6,7 +7,7 @@ from .models import (
     Assignment, AssignmentSubmission, Exam, Fee,
     Announcement, ActivityLog, TeacherEvaluation, Notification,
     ResultLock, Message, StudentNote, MLPrediction,
-    LicenseKey, SystemConfig, UserRole, UserProfile,
+    LicenseKey, SystemConfig, UserRole, UserProfile, Branch,
     SystemBackup, ParentUser, ResultPublishSession, ResultSessionEntry,
     Subscription, Invoice, CertificateTemplate, Certificate,
     APIKey, WebhookEndpoint, WebhookDeliveryLog,
@@ -117,23 +118,62 @@ class TeacherAdmin(admin.ModelAdmin):
     search_fields = ('first_name', 'last_name', 'email', 'user__username')
     list_filter = ('is_active', 'is_admin', 'joining_date', 'subjects', 'levels', 'semesters', 'department')
     ordering = ('first_name',)
-    readonly_fields = ('user',)
     filter_horizontal = ('subjects', 'levels', 'semesters')
-    fieldsets = (
-        ('User Account', {'fields': ('user', 'is_active', 'is_admin')}),
-        ('Personal Information', {'fields': ('first_name', 'last_name', 'email', 'phone', 'joining_date')}),
-        ('Department', {'fields': ('department',)}),
-        ('Assignments', {'fields': ('subjects',)}),
-        ('Education Levels', {
-            'fields': ('levels',),
-            'description': 'Select the education levels this teacher can teach. Bachelor level teachers should also select School and College levels for full access.'
-        }),
-        ('Semester Assignments (for Bachelor Level)', {
-            'fields': ('semesters',),
-            'description': 'Select the semesters this teacher teaches (only applicable for Bachelor level).',
-            'classes': ('collapse',),
-        }),
-    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return ('user', 'joining_date')
+        return ('joining_date',)
+
+    def get_fieldsets(self, request, obj=None):
+        if obj:
+            fieldsets = (
+                ('User Account', {'fields': ('user', 'is_active', 'is_admin')}),
+                ('Personal Information', {'fields': ('first_name', 'last_name', 'email', 'phone', 'joining_date')}),
+                ('Department', {'fields': ('department',)}),
+                ('Assignments', {'fields': ('subjects',)}),
+                ('Education Levels', {
+                    'fields': ('levels',),
+                    'description': 'Select the education levels this teacher can teach. Bachelor level teachers should also select School and College levels for full access.'
+                }),
+                ('Semester Assignments (for Bachelor Level)', {
+                    'fields': ('semesters',),
+                    'description': 'Select the semesters this teacher teaches (only applicable for Bachelor level).',
+                    'classes': ('collapse',),
+                }),
+            )
+        else:
+            fieldsets = (
+                ('Personal Information', {'fields': ('first_name', 'last_name', 'email', 'phone')}),
+                ('Department', {'fields': ('department',)}),
+                ('Assignments', {'fields': ('subjects',)}),
+                ('Education Levels', {
+                    'fields': ('levels',),
+                    'description': 'Select the education levels this teacher can teach. Bachelor level teachers should also select School and College levels for full access.'
+                }),
+                ('Semester Assignments (for Bachelor Level)', {
+                    'fields': ('semesters',),
+                    'description': 'Select the semesters this teacher teaches (only applicable for Bachelor level).',
+                    'classes': ('collapse',),
+                }),
+            )
+        return fieldsets
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.user_id:
+            from django.contrib.auth import get_user_model
+            from core.teacher_auth import TEACHER_DEFAULT_PASSWORD, generate_teacher_username
+            User = get_user_model()
+            username = generate_teacher_username(obj.first_name, obj.last_name)
+            obj.user = User.objects.create_user(
+                username=username,
+                password=TEACHER_DEFAULT_PASSWORD,
+                email=obj.email or '',
+                first_name=obj.first_name,
+                last_name=obj.last_name,
+                is_active=True,
+            )
+        super().save_model(request, obj, form, change)
 
     class Media:
         js = ('js/teacher_admin.js',)
@@ -161,6 +201,7 @@ class TeacherAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
+    form = StudentAdminForm
     list_display = (
         'name', 'roll_number', 'level', 'student_class', 'section',
         'semester', 'phone', 'email', 'attendance_percentage',
@@ -185,6 +226,7 @@ class StudentAdmin(admin.ModelAdmin):
     list_per_page = 100
 
     class Media:
+        css = {'all': ('css/student_admin.css',)}
         js = ('js/student_admin.js',)
 
     def get_teachers_count(self, obj):
@@ -494,6 +536,12 @@ class UserRoleAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'is_active')
+    search_fields = ('name', 'code')
+
+
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'role', 'branch')
@@ -709,7 +757,6 @@ class ExamAnswerAdmin(admin.ModelAdmin):
     list_display = ('attempt', 'question', 'selected_option', 'marks_awarded')
     list_filter = ('attempt__online_exam__subject',)
     search_fields = ('attempt__student__name', 'question__question_text')
-    ordering = ('-created_at',)
     list_select_related = ('attempt__student', 'question')
 
 

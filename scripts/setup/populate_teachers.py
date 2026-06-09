@@ -1,3 +1,14 @@
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+os.chdir(PROJECT_ROOT)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'academicsys.settings')
+
+import django
+django.setup()
+
 from core.models import Student, Teacher
 
 # Get teachers

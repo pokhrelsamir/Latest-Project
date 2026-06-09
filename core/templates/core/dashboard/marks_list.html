@@ -1,58 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Marks List - Academic System</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Theme detection script - Default to dark theme -->
-    <script>
-        (function() {
-            const savedTheme = localStorage.getItem('theme');
-            const theme = savedTheme || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
+    {% include 'core/partials/design_head.html' with page_title="Marks List - Academic System" %}
 </head>
 
-<body>
+<body class="app-page">
+    {% with nav_links='<a href="/"><i class="fas fa-home"></i> Home</a><a href="/dashboard/"><i class="fas fa-th-large"></i> Dashboard</a>' %}
+    {% include 'core/partials/app_navbar.html' %}
+    {% endwith %}
 
-    <!-- Navbar -->
-    <nav class="navbar">
-        <h2 class="logo">🎓 AcadStat</h2>
-        <div class="nav-links">
-            <a href="/">Home</a>
-            {% if user.is_authenticated %}
-                <a href="/dashboard/">Dashboard</a>
-                <a href="/logout/">Logout</a>
-            {% else %}
-                <a href="/login/">Login</a>
-            {% endif %}
-            
-            <!-- Theme Toggle Button -->
-            <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-                <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="5"/>
-                    <line x1="12" y1="1" x2="12" y2="3"/>
-                    <line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/>
-                    <line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-                <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-            </button>
-        </div>
-    </nav>
-
-    <!-- Page Content -->
-    <div class="container">
+    <main class="app-shell app-shell--wide">
         {% block content %}
 <div class="marks-page-wrapper">
     <!-- Header Section -->
@@ -69,6 +26,7 @@
                 <p>View and manage all student marks records</p>
             </div>
         </div>
+        {% if is_teacher %}
         <a href="/add-marks/" class="add-btn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
@@ -76,6 +34,7 @@
             </svg>
             Add New Marks
         </a>
+        {% endif %}
         <a href="/mark-sheet/" class="add-btn" style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); margin-right: 10px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -108,11 +67,11 @@
     </div>
 
     <!-- Table Container -->
-    <div class="table-container">
+    <div class="table-container table-wrap">
         <table class="marks-table" id="marksTable">
             <thead>
                 <tr>
-                    <th>
+                    <th class="student-col">
                         <span class="th-content">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -130,8 +89,8 @@
                             Subject
                         </span>
                     </th>
-                    <th>
-                        <span class="th-content">
+                    <th class="num">
+                        <span class="th-content th-content--center">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                                 <line x1="16" y1="2" x2="16" y2="6"/>
@@ -141,16 +100,16 @@
                             Terminal
                         </span>
                     </th>
-                    <th>
-                        <span class="th-content">
+                    <th class="num">
+                        <span class="th-content th-content--center">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                             </svg>
                             Marks
                         </span>
                     </th>
-                    <th>
-                        <span class="th-content">
+                    <th class="num">
+                        <span class="th-content th-content--center">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10"/>
                                 <polyline points="12 6 12 12 16 14"/>
@@ -158,8 +117,8 @@
                             Percentage
                         </span>
                     </th>
-                    <th>
-                        <span class="th-content">
+                    <th class="num">
+                        <span class="th-content th-content--center">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                                 <line x1="16" y1="2" x2="16" y2="6"/>
@@ -169,8 +128,8 @@
                             Date
                         </span>
                     </th>
-                    <th>
-                        <span class="th-content">
+                    <th class="center">
+                        <span class="th-content th-content--center">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="1"/>
                                 <circle cx="19" cy="12" r="1"/>
@@ -184,7 +143,7 @@
             <tbody>
                 {% for mark in result %}
                 <tr data-id="{{ mark.id }}">
-                    <td class="student-cell">
+                    <td class="student-cell student-col">
                         <div class="student-info">
                             <div class="student-avatar">
                                 {{ mark.student.name|make_list|first|upper }}
@@ -198,27 +157,26 @@
                     <td>
                         <span class="subject-badge">{{ mark.subject.name }}</span>
                     </td>
-                    <td>
+                    <td class="num">
                         <span class="terminal-badge {{ mark.terminal }}-badge">{{ mark.terminal }}</span>
                     </td>
-                    <td>
-                        <div class="marks-cell">
+                    <td class="num">
+                        <div class="marks-cell marks-cell--center">
                             <span class="marks-obtained">{{ mark.marks_obtained }}</span>
                             <span class="marks-divider">/</span>
                             <span class="marks-total">{{ mark.total_marks }}</span>
                         </div>
                     </td>
-                    <td>
-                        {% widthratio mark.marks_obtained mark.total_marks 100 as percentage %}
-                        <div class="percentage-badge {% if percentage >= 60 %}pass{% else %}fail{% endif %}">
-                            {{ percentage }}%
+                    <td class="num">
+                        <div class="percentage-badge {% if mark.percentage >= 60 %}pass{% else %}fail{% endif %}">
+                            {{ mark.percentage|floatformat:1 }}%
                         </div>
                     </td>
-                    <td class="date-cell">
+                    <td class="num date-cell">
                         {{ mark.created_at|date:"M d, Y" }}
                     </td>
-                    <td>
-                        <div class="action-buttons">
+                    <td class="center">
+                        <div class="action-buttons action-buttons--center">
                             <button class="action-btn marksheet-btn" onclick="openTerminalModal({{ mark.student.id }}, '{{ mark.student.name }}')" title="Generate Mark Sheet 📑" style="background: #dcfce7; color: #16a34a; border: none; display: flex; align-items: center; justify-content: center;">
                                 📑
                             </button>
@@ -243,8 +201,10 @@
                                 <polyline points="10 9 9 9 8 9"/>
                             </svg>
                             <h3>No marks records found</h3>
-                            <p>Start by adding marks for students</p>
+                            <p>{% if is_teacher %}Start by adding marks for your assigned students{% else %}No marks have been recorded yet{% endif %}</p>
+                            {% if is_teacher %}
                             <a href="/add-marks/" class="empty-btn">Add Marks</a>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>
@@ -395,8 +355,8 @@
 <style>
     .marks-page-wrapper {
         max-width: 1100px;
-        margin: 30px auto;
-        padding: 0 20px;
+        margin: 0 auto;
+        padding: 0;
     }
 
     .marks-header {
@@ -423,8 +383,9 @@
         font-weight: 500;
         padding: 10px 16px;
         border-radius: 10px;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
         transition: all 0.3s;
     }
 
@@ -434,14 +395,15 @@
     }
 
     .title-section h2 {
-        color: #1e293b;
-        font-size: 1.8rem;
+        color: var(--text-primary);
+        font-size: var(--ds-text-lg);
+        font-weight: 700;
         margin-bottom: 5px;
     }
 
     .title-section p {
-        color: #64748b;
-        font-size: 0.95rem;
+        color: var(--text-muted);
+        font-size: var(--ds-text-sm);
     }
 
     .add-btn {
@@ -517,46 +479,72 @@
     }
 
     .table-container {
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-        overflow: hidden;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--ds-radius);
+        box-shadow: var(--shadow-sm);
+        overflow-x: auto;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
     }
 
     .marks-table {
         width: 100%;
         border-collapse: collapse;
+        table-layout: auto;
+        min-width: 720px;
     }
 
     .marks-table th {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--ds-gradient);
         color: white;
-        padding: 18px 20px;
+        padding: 0.65rem 0.75rem;
         text-align: left;
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: var(--ds-text-xs);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.05em;
+        vertical-align: middle;
     }
 
     .th-content {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
     }
 
+    .th-content--center {
+        justify-content: center;
+        width: 100%;
+    }
+
     .marks-table tbody tr {
-        border-bottom: 1px solid #f1f5f9;
-        transition: all 0.2s;
+        border-bottom: 1px solid var(--border-color);
+        transition: background 0.15s;
+        background: var(--bg-card);
     }
 
     .marks-table tbody tr:hover {
-        background: #f8fafc;
+        background: var(--table-hover, var(--bg-card-hover));
     }
 
     .marks-table td {
-        padding: 18px 20px;
-        color: #334155;
+        padding: 0.7rem 0.75rem;
+        color: var(--text-primary);
+        font-size: var(--ds-text-sm);
+        vertical-align: middle;
+    }
+
+    .marks-cell--center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .action-buttons--center {
+        justify-content: center;
     }
 
     .student-cell .student-info {
@@ -581,23 +569,23 @@
     .student-name {
         display: block;
         font-weight: 600;
-        color: #1e293b;
+        color: var(--text-primary);
     }
 
     .student-roll {
         display: block;
-        font-size: 0.85rem;
-        color: #94a3b8;
+        font-size: var(--ds-text-sm);
+        color: var(--text-muted);
     }
 
     .subject-badge {
         display: inline-block;
         padding: 6px 14px;
-        background: #f1f5f9;
+        background: var(--bg-secondary);
         border-radius: 8px;
         font-weight: 500;
-        color: #475569;
-        font-size: 0.9rem;
+        color: var(--text-secondary);
+        font-size: var(--ds-text-sm);
     }
     
     .terminal-badge {
@@ -635,17 +623,18 @@
     }
 
     .marks-obtained {
-        font-size: 1.1rem;
-        color: #1e293b;
+        font-size: var(--ds-text-base);
+        color: var(--text-primary);
+        font-weight: 600;
     }
 
     .marks-divider {
-        color: #cbd5e1;
+        color: var(--text-muted);
         margin: 0 4px;
     }
 
     .marks-total {
-        color: #94a3b8;
+        color: var(--text-muted);
     }
 
     .percentage-badge {
@@ -667,8 +656,9 @@
     }
 
     .date-cell {
-        color: #64748b;
-        font-size: 0.9rem;
+        color: var(--text-muted);
+        font-size: var(--ds-text-sm);
+        white-space: nowrap;
     }
 
     .action-buttons {
@@ -1021,12 +1011,8 @@
             max-width: none;
         }
         
-        .table-container {
-            overflow-x: auto;
-        }
-        
         .marks-table {
-            min-width: 700px;
+            min-width: 680px;
         }
     }
     
@@ -1274,39 +1260,8 @@
     });
 </script>
 {% endblock %}
+    </main>
 
-    <!-- Theme Toggle Script -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const themeToggle = document.getElementById('themeToggle');
-            const html = document.documentElement;
-            
-            // Set initial icon state
-            updateThemeIcon(html.getAttribute('data-theme'));
-            
-            themeToggle.addEventListener('click', function() {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-                
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateThemeIcon(newTheme);
-            });
-            
-            function updateThemeIcon(theme) {
-                const sunIcon = themeToggle.querySelector('.sun-icon');
-                const moonIcon = themeToggle.querySelector('.moon-icon');
-                
-                if (theme === 'dark') {
-                    sunIcon.style.display = 'block';
-                    moonIcon.style.display = 'none';
-                } else {
-                    sunIcon.style.display = 'none';
-                    moonIcon.style.display = 'block';
-                }
-            }
-        });
-    </script>
-
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

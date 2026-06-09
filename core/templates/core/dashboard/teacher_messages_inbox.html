@@ -1,18 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inbox — AcadStat</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% include 'core/partials/design_head.html' with page_title="Inbox — AcadStat" %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         (function(){ const saved=localStorage.getItem('theme'); const t=saved||'dark'; document.documentElement.setAttribute('data-theme',t); })();
     </script>
 </head>
-<body>
+<body class="app-page">
     <nav class="navbar">
         <h2 class="logo"><i class="fas fa-envelope"></i> AcadStat</h2>
         <div class="nav-links">
@@ -67,5 +63,7 @@
             localStorage.setItem('theme',t);
         });
     </script>
+
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>

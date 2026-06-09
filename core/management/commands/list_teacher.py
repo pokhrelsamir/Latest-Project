@@ -25,12 +25,16 @@ class Command(BaseCommand):
         self.stdout.write('-' * 50)
         
         for teacher in teachers:
-            self.stdout.write(f'  ID: {teacher.id:3} | {teacher.get_full_name()} | Subjects: {", ".join([s.name for s in teacher.subjects.all()])}')
-        
-        self.stdout.write('-' * 50)
+            username = teacher.user.username if teacher.user_id else '(no login)'
+            self.stdout.write(
+                f'  ID: {teacher.id:3} | {teacher.get_full_name():28} | {username:22} | '
+                f'Subjects: {", ".join([s.name for s in teacher.subjects.all()]) or "—"}'
+            )
+
+        self.stdout.write('-' * 80)
         self.stdout.write(f'\nTotal: {teachers.count()} teachers\n')
-        self.stdout.write('\nExamples:')
-        self.stdout.write('  python manage.py create_teacher_user 1 mypassword')
-        self.stdout.write('  python manage.py create_teacher_user 2 mypassword')
-        self.stdout.write('\nOr create all at once:')
-        self.stdout.write('  python manage.py create_teachers --create-sample')
+        self.stdout.write('Create / repair login (default password: pass):')
+        self.stdout.write('  python manage.py create_teacher_user <id>')
+        self.stdout.write('  python manage.py create_teacher_user <id> mypassword')
+        self.stdout.write('\nSync all teachers to firstname.lastname + pass:')
+        self.stdout.write('  python manage.py sync_teacher_users')

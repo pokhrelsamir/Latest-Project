@@ -1,72 +1,67 @@
 """
-Management command to create a teacher user account for login.
+Create or repair a Django login for a teacher (firstname.lastname / default pass).
 
 Usage:
-    python manage.py create_teacher_user <teacher_id> <password>
+    python manage.py create_teacher_user <teacher_id>
+    python manage.py create_teacher_user <teacher_id> mypassword
+    python manage.py create_teacher_user <teacher_id> --username custom.name
 
-Example:
-    python manage.py create_teacher_user 1 mypassword
-
-This creates a Django user with username based on teacher's name
-so they can login and see their own dashboard.
+Default password: pass
 """
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
 from core.models import Teacher
+from core.teacher_auth import TEACHER_DEFAULT_PASSWORD, ensure_teacher_user, generate_teacher_username
 
 
 class Command(BaseCommand):
-    help = 'Create a Django user account for a teacher'
+    help = 'Create or link a teacher login (username: firstname.lastname, default password: pass)'
 
     def add_arguments(self, parser):
-        parser.add_argument('teacher_id', type=int, help='Teacher ID')
-        parser.add_argument('password', type=str, help='Password for the user')
-        parser.add_argument('--username', type=str, help='Custom username (default: firstname_lastname)')
+        parser.add_argument('teacher_id', type=int, help='Teacher database ID')
+        parser.add_argument(
+            'password',
+            nargs='?',
+            default=TEACHER_DEFAULT_PASSWORD,
+            help=f'Password (default: {TEACHER_DEFAULT_PASSWORD})',
+        )
+        parser.add_argument('--username', type=str, help='Custom username (default: firstname.lastname)')
+        parser.add_argument(
+            '--normalize',
+            action='store_true',
+            help='Rename existing username to firstname.lastname format',
+        )
 
     def handle(self, *args, **options):
         teacher_id = options['teacher_id']
         password = options['password']
         custom_username = options.get('username')
-        
+        normalize = options['normalize']
+
         try:
             teacher = Teacher.objects.get(id=teacher_id)
         except Teacher.DoesNotExist:
             self.stderr.write(self.style.ERROR(f'Teacher with ID {teacher_id} not found!'))
             return
-        
-        # Generate username: remove spaces and make lowercase
-        if custom_username:
-            username = custom_username
-        else:
-            # Remove spaces from names for cleaner username
-            first = teacher.first_name.replace(' ', '').lower()
-            last = teacher.last_name.replace(' ', '').lower()
-            username = f"{first}_{last}"
-        
-        # Check if user already exists
-        if User.objects.filter(username=username).exists():
-            self.stderr.write(self.style.WARNING(f'User "{username}" already exists!'))
-            # Update the password
-            user = User.objects.get(username=username)
-            user.set_password(password)
-            user.save()
-            self.stdout.write(self.style.SUCCESS(f'Updated password for user "{username}"'))
-            return
-        
-        # Create new user
-        user = User.objects.create_user(
-            username=username,
+
+        if not custom_username:
+            custom_username = generate_teacher_username(
+                teacher.first_name,
+                teacher.last_name,
+                exclude_user_id=getattr(teacher.user, 'pk', None),
+            )
+
+        user = ensure_teacher_user(
+            teacher,
             password=password,
-            email=teacher.email or '',
-            first_name=teacher.first_name,
-            last_name=teacher.last_name,
-            is_staff=False,
-            is_active=True
+            username=custom_username,
+            normalize_username=normalize,
         )
-        
+
         self.stdout.write(self.style.SUCCESS(
-            f'Successfully created user account for {teacher.get_full_name()}!\n'
-            f'  Username: {username}\n'
+            f'Login ready for {teacher.get_full_name()}\n'
+            f'  Username: {user.username}\n'
+            f'  Password: {password}\n'
             f'  Teacher ID: {teacher_id}\n'
-            f'  Login URL: /login/'
+            f'  Login URL: /login/\n'
+            f'  Dashboard: /dashboard/ (teacher view)'
         ))

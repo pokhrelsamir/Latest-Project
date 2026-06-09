@@ -1,0 +1,13 @@
+<script>
+(function() {
+    const toggle = document.getElementById('themeToggle');
+    if (!toggle) return;
+    const html = document.documentElement;
+    toggle.addEventListener('click', function() {
+        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        if (typeof window.onThemeChange === 'function') window.onThemeChange(next);
+    });
+})();
+</script>

@@ -1,163 +1,358 @@
-{% extends 'core/dashboard/dashboard.html' %}
-{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include 'core/partials/design_head.html' with page_title="Subject Analytics — AcadStat" %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .analytics-filter-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.85rem;
+        }
+        @media (min-width: 768px) {
+            .analytics-filter-row { grid-template-columns: 1fr 1fr auto; align-items: end; }
+        }
+        .subject-chip-analytics {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+            padding: 0.5rem 0.85rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            font-size: var(--ds-text-xs);
+            font-weight: 500;
+            color: var(--text-secondary);
+            width: fit-content;
+        }
+        .subject-chip-analytics.visible { display: inline-flex; }
+        .subject-chip-analytics i { color: var(--ds-accent); }
+        .chart-wrap {
+            position: relative;
+            width: 100%;
+            min-height: 260px;
+        }
+        .chart-wrap canvas { max-height: 300px; }
+        .insight-pill {
+            padding: 0.6rem 0.85rem;
+            border-radius: var(--ds-radius-sm);
+            margin-bottom: 0.5rem;
+            font-size: var(--ds-text-sm);
+            line-height: 1.45;
+            background: var(--ds-accent-soft);
+            border-left: 3px solid var(--ds-accent);
+            color: var(--text-primary);
+        }
+        .trend-up { color: var(--ds-success); }
+        .trend-down { color: var(--ds-danger); }
+        .trend-same { color: var(--text-muted); }
+        .section-label {
+            font-size: var(--ds-text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin: 0 0 0.35rem;
+        }
+    </style>
+</head>
+<body class="app-page">
+    {% with nav_links='<a href="/dashboard/"><i class="fas fa-th-large"></i> Dashboard</a><a href="/marks-list/"><i class="fas fa-list"></i> Marks</a><a href="/subject-analytics/"><i class="fas fa-chart-line"></i> Analytics</a><a href="/course-materials/"><i class="fas fa-folder"></i> Materials</a>' %}
+    {% include 'core/partials/app_navbar.html' %}
+    {% endwith %}
 
-{% block content %}
-<div class="dashboard-container">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px;">
-    <div>
-      <h1>📊 Subject Analytics</h1>
-      <p class="dashboard-subtitle">Per-subject performance insights — class average, distribution &amp; student trends</p>
-    </div>
-    <div>
-      <a href="{% url 'core:performance_heatmap' %}" class="btn btn-secondary">
-        <i class="fas fa-th"></i> Heatmap View
-      </a>
-    </div>
-  </div>
+    <main class="app-shell app-shell--wide">
+        <a href="/dashboard/" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
 
-  <!-- Filter bar -->
-  <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;
-              padding:20px;margin-bottom:28px;">
-    <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-      <div>
-        <label style="display:block;font-size:.85rem;color:var(--text-secondary);margin-bottom:4px;">Subject</label>
-        <select name="subject" class="form-control" style="min-width:200px;" onchange="this.form.submit()">
-          <option value="">All subjects</option>
-          {% for s in available_subjects %}
-          <option value="{{ s.id }}" {% if subject_id == s.id|stringformat:"s" %}selected{% endif %}>
-            {{ s.name }} ({{ s.code }})
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label style="display:block;font-size:.85rem;color:var(--text-secondary);margin-bottom:4px;">Terminal</label>
-        <select name="terminal" class="form-control" style="min-width:140px;" onchange="this.form.submit()">
-          {% for t in terminals %}
-          <option value="{{ t }}" {% if t == terminal %}selected{% endif %}>{{ t }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <noscript><button type="submit" class="btn btn-primary">Apply</button></noscript>
-    </form>
-  </div>
+        <div class="page-hero">
+            <h1 class="page-title"><i class="fas fa-chart-line" style="color:var(--ds-accent);"></i> Subject Analytics</h1>
+            <p class="page-subtitle">Line charts from marks you entered for your students — terminal and subject performance</p>
+            {% if subject_obj %}
+            <div class="subject-chip-analytics visible">
+                <i class="fas fa-book"></i>
+                <span>{{ subject_obj.name }} ({{ subject_obj.code }})</span>
+            </div>
+            {% endif %}
+        </div>
 
-  {% if subject_obj %}
-  <h3 style="color:var(--text-primary);margin-bottom:20px;">{{ subject_obj.name }} — {{ subject_obj.code }}</h3>
-  {% endif %}
+        <section class="section-card fade-in">
+            <div class="card-head">
+                <span class="step-badge">1</span>
+                <div>
+                    <h2 class="section-title">Filters</h2>
+                    <p class="card-subtitle">Narrow by subject or terminal</p>
+                </div>
+            </div>
+            <form method="get" class="analytics-filter-row">
+                <div class="form-group ds">
+                    <label for="subjectFilter">Subject</label>
+                    <select name="subject" id="subjectFilter" onchange="this.form.submit()">
+                        <option value="">All subjects</option>
+                        {% for s in available_subjects %}
+                        <option value="{{ s.id }}" {% if subject_id == s.id|stringformat:"s" %}selected{% endif %}>
+                            {{ s.name }} ({{ s.code }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group ds">
+                    <label for="terminalFilter">Terminal</label>
+                    <select name="terminal" id="terminalFilter" onchange="this.form.submit()">
+                        <option value="all" {% if terminal == "all" %}selected{% endif %}>All terminals</option>
+                        {% for t in terminals %}
+                        <option value="{{ t }}" {% if terminal == t %}selected{% endif %}>{{ t }} Terminal</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <noscript><button type="submit" class="btn ds ds-primary">Apply</button></noscript>
+            </form>
+            <p class="form-hint" style="margin-top:0.75rem;margin-bottom:0;">
+                Data reflects marks from <strong>View All Marks</strong> for students assigned to you.
+            </p>
+        </section>
 
-  {% if total > 0 %}
-  <!-- KPI Stat Cards -->
-  <div class="stats-grid" style="margin-bottom:24px;">
-    <div class="stat-card" style="background:var(--accent-gradient);color:#fff;">
-      <div style="font-size:.85rem;opacity:.8;">Class Average</div>
-      <div style="font-size:2rem;font-weight:800;">{{ avg_pct }}%</div>
-    </div>
-    <div class="stat-card" style="background:var(--success-gradient);color:#fff;">
-      <div style="font-size:.85rem;opacity:.8;">Highest Score</div>
-      <div style="font-size:2rem;font-weight:800;">{{ highest_pct }}%</div>
-    </div>
-    <div class="stat-card" style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;">
-      <div style="font-size:.85rem;opacity:.8;">Lowest Score</div>
-      <div style="font-size:2rem;font-weight:800;">{{ lowest_pct }}%</div>
-    </div>
-    <div class="stat-card" style="background:var(--warning-gradient);color:#fff;">
-      <div style="font-size:.85rem;opacity:.8;">Pass Rate</div>
-      <div style="font-size:2rem;font-weight:800;">{{ pass_rate }}%</div>
-      <div style="font-size:.8rem;opacity:.8;">{{ pass_count }} / {{ total }} passed</div>
-    </div>
-  </div>
+        {% if total > 0 %}
+        <div class="stats-grid fade-in">
+            <div class="stat-card">
+                <div class="stat-icon-wrap accent"><i class="fas fa-percentage"></i></div>
+                <div class="stat-label">Class Average</div>
+                <div class="stat-value">{{ avg_pct }}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrap success"><i class="fas fa-arrow-up"></i></div>
+                <div class="stat-label">Highest Score</div>
+                <div class="stat-value">{{ highest_pct }}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrap warning"><i class="fas fa-arrow-down"></i></div>
+                <div class="stat-label">Lowest Score</div>
+                <div class="stat-value">{{ lowest_pct }}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrap info"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-label">Pass Rate</div>
+                <div class="stat-value">{{ pass_rate }}%</div>
+                <p class="text-muted" style="margin:0.25rem 0 0;">{{ pass_count }} / {{ total }} passed</p>
+            </div>
+        </div>
 
-  <!-- Histogram + Insights -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;">
-    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;">
-      <h4 style="margin:0 0 16px 0;">Score Distribution</h4>
-      <canvas id="histogramChart" height="240"></canvas>
-    </div>
-    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;">
-      <h4 style="margin:0 0 16px 0;">Insights</h4>
-      {% for line in insight_lines %}
-      <div style="padding:10px 14px;border-radius:8px;margin-bottom:8px;font-size:.9rem;
-                  background:#f0f9ff;border-left:4px solid #3b82f6;color:#1e40af;">
-        {{ line }}
-      </div>
-      {% endfor %}
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--card-border);
-                  font-size:.8rem;color:var(--text-secondary);">
-        Analysing {{ total }} result{{ total|pluralize }} across
-        {% for t in running_terminals %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}
-        terminal{{ running_terminals|length|pluralize }}.
-      </div>
-    </div>
-  </div>
+        <div class="ds-grid two-col fade-in">
+            <section class="section-card">
+                <div class="card-head">
+                    <span class="step-badge">2</span>
+                    <div>
+                        <h2 class="section-title">Terminal-wise Performance</h2>
+                        <p class="card-subtitle">Average % per terminal — one line per subject</p>
+                    </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="terminalWiseChart" aria-label="Terminal-wise performance line chart"></canvas>
+                </div>
+            </section>
 
-  <!-- Trend table — each row has: student.name, marks_by_term dict, arrow -->
-  <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;
-              padding:24px;overflow-x:auto;">
-    <h4 style="margin:0 0 16px 0;">Student Trends — Last {{ running_terminals|length }} Terminal{{ running_terminals|pluralize }}</h4>
+            <section class="section-card">
+                <div class="card-head">
+                    <span class="step-badge">3</span>
+                    <div>
+                        <h2 class="section-title">Subject-wise Performance</h2>
+                        <p class="card-subtitle">Average % per subject — coloured by terminal</p>
+                    </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="subjectWiseChart" aria-label="Subject-wise performance line chart"></canvas>
+                </div>
+            </section>
+        </div>
 
-    <table style="width:100%;border-collapse:collapse;min-width:480px;">
-      <thead>
-        <tr style="background:#f1f5f9;">
-          <th style="padding:10px 14px;text-align:left;">Student</th>
-          {% for t in running_terminals %}
-          <th style="padding:10px 14px;text-align:center;white-space:nowrap;">{{ t }} Terminal</th>
-          {% endfor %}
-          <th style="padding:10px 14px;text-align:center;white-space:nowrap;">Trend</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in trend_rows %}
-        <tr style="border-top:1px solid var(--card-border);">
-          <td style="padding:8px 14px;font-weight:600;white-space:nowrap;">{{ row.student.name }}</td>
-          {% for t, mark in row.mark_tuples %}
-          <td style="padding:8px 14px;text-align:center;font-family:monospace;white-space:nowrap;">{{ mark|default:"-" }}</td>
-          {% endfor %}
-          <td style="padding:8px 14px;text-align:center;white-space:nowrap;">
-            {% if row.arrow == "up" %}<span style="color:#16a34a;font-size:1.2rem;">↑</span>
-            {% elif row.arrow == "down" %}<span style="color:#dc2626;font-size:1.2rem;">↓</span>
-            {% else %}<span style="color:#64748b;">→</span>{% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+        {% if insight_lines %}
+        <section class="section-card fade-in">
+            <p class="section-label">Insights</p>
+            <h2 class="section-title" style="margin-bottom:0.75rem;">Quick takeaways</h2>
+            {% for line in insight_lines %}
+            <div class="insight-pill">{{ line }}</div>
+            {% endfor %}
+            <p class="text-muted" style="margin:0.75rem 0 0;">
+                Analysing {{ total }} result{{ total|pluralize }} across
+                {% for t in run_terminals %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                terminal{{ run_terminals|length|pluralize }}.
+            </p>
+        </section>
+        {% endif %}
 
-  {% else %}
-  <div style="text-align:center;padding:60px;color:var(--text-secondary);">
-    <i class="fas fa-chart-bar" style="font-size:3.5rem;display:block;opacity:.3;margin-bottom:16px;"></i>
-    <p>No results to display yet. Add marks for students to see analytics.</p>
-  </div>
-  {% endif %}
-</div>
+        <section class="section-card fade-in">
+            <div class="card-head">
+                <span class="step-badge">4</span>
+                <div>
+                    <h2 class="section-title">Student Trends</h2>
+                    <p class="card-subtitle">Percentage marks by terminal for your students</p>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="ds-table">
+                    <colgroup>
+                        <col class="student-col">
+                        {% for t in run_terminals %}<col class="num">{% endfor %}
+                        <col class="trend-col">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="student-col">Student</th>
+                            {% for t in run_terminals %}
+                            <th class="num">{{ t }}</th>
+                            {% endfor %}
+                            <th class="trend-col">Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in trend_rows %}
+                        <tr>
+                            <td class="student-col"><strong>{{ row.student.name }}</strong></td>
+                            {% for t, mark in row.mark_tuples %}
+                            <td class="num">
+                                {% if mark is not None %}<span class="cell-value">{{ mark }}%</span>{% else %}<span class="cell-empty">—</span>{% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="trend-col">
+                                {% if row.arrow == "up" %}<span class="trend-up" title="Improving">↑</span>
+                                {% elif row.arrow == "down" %}<span class="trend-down" title="Declining">↓</span>
+                                {% else %}<span class="trend-same" title="Stable">→</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ run_terminals|length|add:2 }}" class="empty-state">
+                                <i class="fas fa-table"></i>
+                                No student trend data yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-{% if total > 0 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  const labels = {{ bins_labels|safe }};
-  const data   = {{ bins|safe }};
-  new Chart(document.getElementById("histogramChart"), {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Students",
-        data: data,
-        backgroundColor: ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#8b5cf6","#6366f1"],
-        borderRadius: 6,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false },
-                 tooltip: { callbacks: { label: function(ctx) { return " "+ctx.parsed.y+" student(s)"; } } } },
-      scales: {
-        x: { title: { display: true, text: "Score Range (%)" } },
-        y: { title: { display: true, text: "Count" }, ticks: { stepSize: 1 } }
-      }
-    }
-  });
-</script>
-{% endif %}
-{% endblock %}
+        {{ terminal_wise_chart|json_script:"terminal-chart-data" }}
+        {{ subject_wise_chart|json_script:"subject-chart-data" }}
+
+        <script>
+        (function() {
+            function cssVar(name, fallback) {
+                return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+            }
+
+            function chartTheme() {
+                return {
+                    text: cssVar('--text-secondary', '#94a3b8'),
+                    grid: cssVar('--border-color', 'rgba(148,163,184,0.2)'),
+                    title: cssVar('--text-primary', '#e2e8f0'),
+                };
+            }
+
+            function lineOptions(yLabel) {
+                const theme = chartTheme();
+                return {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: theme.text,
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                                boxWidth: 12,
+                                padding: 14,
+                            },
+                        },
+                        tooltip: {
+                            backgroundColor: cssVar('--bg-card', '#1e293b'),
+                            titleColor: theme.title,
+                            bodyColor: theme.text,
+                            borderColor: theme.grid,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(ctx) {
+                                    const v = ctx.parsed.y;
+                                    return ' ' + ctx.dataset.label + ': ' + (v != null ? v + '%' : '—');
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: theme.text,
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            },
+                            grid: { color: theme.grid },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: yLabel,
+                                color: theme.text,
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            },
+                            ticks: {
+                                color: theme.text,
+                                callback: function(v) { return v + '%'; },
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            },
+                            grid: { color: theme.grid },
+                        },
+                    },
+                };
+            }
+
+            function buildLineChart(canvasId, rawData, yLabel) {
+                const el = document.getElementById(canvasId);
+                if (!el) return null;
+                const data = JSON.parse(document.getElementById(rawData).textContent);
+                data.datasets = data.datasets.map(function(ds) {
+                    return Object.assign({
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        spanGaps: true,
+                    }, ds);
+                });
+                return new Chart(el, {
+                    type: 'line',
+                    data: data,
+                    options: lineOptions(yLabel),
+                });
+            }
+
+            let terminalChart = buildLineChart('terminalWiseChart', 'terminal-chart-data', 'Average %');
+            let subjectChart = buildLineChart('subjectWiseChart', 'subject-chart-data', 'Average %');
+
+            window.onThemeChange = function() {
+                if (terminalChart) terminalChart.destroy();
+                if (subjectChart) subjectChart.destroy();
+                terminalChart = buildLineChart('terminalWiseChart', 'terminal-chart-data', 'Average %');
+                subjectChart = buildLineChart('subjectWiseChart', 'subject-chart-data', 'Average %');
+            };
+        })();
+        </script>
+
+        {% else %}
+        <section class="section-card fade-in">
+            <div class="empty-state" style="padding:3rem 1rem;">
+                <i class="fas fa-chart-line"></i>
+                <p style="margin:0 0 0.5rem;font-size:var(--ds-text-md);color:var(--text-primary);font-weight:600;">No marks to analyse yet</p>
+                <p style="margin:0 0 1.25rem;">Add marks for your students from the marks list, then return here for charts.</p>
+                <div class="actions-bar" style="justify-content:center;border-top:none;padding-top:0;margin-top:0.5rem;">
+                    <a href="/add-marks/" class="btn ds ds-primary"><i class="fas fa-plus"></i> Add Marks</a>
+                    <a href="/marks-list/" class="btn ds ds-ghost"><i class="fas fa-list"></i> View All Marks</a>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    {% include 'core/partials/theme_script.html' %}
+</body>
+</html>

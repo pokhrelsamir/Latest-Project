@@ -6,7 +6,7 @@ REM  Usage: double-click or run from terminal
 REM ═══════════════════════════════════════════════════════════════
 setlocal
 
-set "PROJECT=C:\Users\poksa\Desktop\abc"
+set "PROJECT=%~dp0.."
 
 echo.
 echo  ╔════════════════════════════════════════════════════╗

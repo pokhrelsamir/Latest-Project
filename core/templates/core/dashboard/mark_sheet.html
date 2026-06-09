@@ -1,22 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mark Sheet - Academic System</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    
-    <!-- Theme detection script - Default to dark theme -->
-    <script>
-        (function() {
-            const savedTheme = localStorage.getItem('theme');
-            const theme = savedTheme || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
-    
-    <style>
+    {% include 'core/partials/design_head.html' with page_title="Mark Sheet - Academic System" %}
+<style>
         /* Mark Sheet Specific Styles */
         .mark-sheet-container {
             max-width: 800px;
@@ -514,7 +500,7 @@
     </style>
 </head>
 
-<body>
+<body class="app-page">
     <!-- Navbar -->
     <nav class="navbar">
         <h2 class="logo">🎓 AcadStat</h2>
@@ -822,5 +808,7 @@
             });
         }
     </script>
+
+    {% include 'core/partials/theme_script.html' %}
 </body>
 </html>
