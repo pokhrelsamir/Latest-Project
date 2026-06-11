@@ -13,6 +13,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('change-password/', views.change_password, name='change_password'),
     path('gpa-forecasting/', views.student_gpa_forecasting, name='gpa_forecasting'),
+    path('student-analytics/', views.student_analytics, name='student_analytics'),
 
     # ── Global Search ─────────────────────────────────────────────────────────
     path('search/', views.global_search, name='global_search'),
@@ -43,6 +44,8 @@ urlpatterns = [
     path('mark-sheet/<int:student_id>/', views.mark_sheet, name='mark_sheet_student'),
     path('mark-sheet/pdf/<int:student_id>/<str:terminal>/', views.export_mark_sheet_pdf, name='export_mark_sheet_pdf'),
     path('select-mark-sheet/', views.select_mark_sheet, name='select_mark_sheet'),
+    path('marksheet-verify/<str:doc_id>/', views.marksheet_verify, name='marksheet_verify'),
+    path('api/marksheet-verify/<str:doc_id>/', views.marksheet_verify_api, name='marksheet_verify_api'),
 
     # ── Student Analysis ──────────────────────────────────────────────────────
     path('student-analysis/', views.student_analysis, name='student_analysis'),

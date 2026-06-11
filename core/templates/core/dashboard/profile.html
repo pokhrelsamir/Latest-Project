@@ -74,20 +74,7 @@
         <!-- Password change -->
         <div class="info-card">
             <h3 class="section-title"><i class="fas fa-lock"></i> Change Password</h3>
-            <div style="margin-bottom:12px;"><button class="btn btn-primary" onclick="togglePwd()"><i class="fas fa-key"></i> Change Password</button></div>
-            <form method="post" action="{% url 'core:change_password' %}" id="pwdForm" style="display:none;flex-direction:column;gap:14px;max-width:420px;">
-                {% csrf_token %}
-                <div>
-                    <label style="font-size:.85rem;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Current Password</label>
-                    <input type="password" name="current_password" required style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:.95rem;">
-                </div>
-                <div>
-                    <label style="font-size:.85rem;font-weight:600;color:#374151;display:block;margin-bottom:4px;">New Password (≥ 4 chars)</label>
-                    <input type="password" name="new_password" required minlength="4"
-                           style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:.95rem;">
-                </div>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Password</button>
-            </form>
+            <button type="button" class="btn btn-primary" data-open-password-modal><i class="fas fa-key"></i> Change Password</button>
         </div>
         {% endif %}
     </div>
@@ -95,10 +82,6 @@
         function new_section() {
             document.querySelector('.profile-head button').innerHTML='<i class="fas fa-sync"></i> Refresh';
             location.reload();
-        }
-        function togglePwd() {
-            var f=document.getElementById('pwdForm');
-            f.style.display=f.style.display==='none'?'flex':'none';
         }
     </script>
 

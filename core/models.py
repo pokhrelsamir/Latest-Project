@@ -115,44 +115,16 @@ class GradeScale(models.Model):
         return self.name
 
     def get_grade(self, percentage):
-        pct = float(percentage)
-        if pct >= 90:
-            return 'A+'
-        elif pct >= 80:
-            return 'A'
-        elif pct >= 70:
-            return 'B+'
-        elif pct >= 60:
-            return 'B'
-        elif pct >= 50:
-            return 'C+'
-        elif pct >= 40:
-            return 'C'
-        elif pct >= 30:
-            return 'D'
-        return 'F'
+        from core.grading_utils import grade_info_for_percentage
+        return grade_info_for_percentage(percentage)['grade']
 
     def get_grade_point(self, percentage):
-        pct = float(percentage)
-        if pct >= 90:
-            return 4.0
-        elif pct >= 80:
-            return 3.6
-        elif pct >= 70:
-            return 3.2
-        elif pct >= 60:
-            return 2.8
-        elif pct >= 50:
-            return 2.4
-        elif pct >= 40:
-            return 2.0
-        elif pct >= 30:
-            return 1.6
-        return 0.0
+        from core.grading_utils import grade_info_for_percentage
+        return grade_info_for_percentage(percentage)['subject_gpa']
 
     @property
     def grade_labels(self):
-        return ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F']
+        return ['A+', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F']
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. TEACHER MODEL

@@ -14,46 +14,46 @@
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card reveal hover-lift">
                 <div class="stat-icon-wrap accent"><i class="fas fa-users"></i></div>
                 <div class="stat-label">Total Students</div>
                 <div class="stat-value">{{ total_students }}</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card reveal reveal-delay-1 hover-lift">
                 <div class="stat-icon-wrap info"><i class="fas fa-book"></i></div>
                 <div class="stat-label">Total Subjects</div>
                 <div class="stat-value">{{ total_subjects }}</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card reveal reveal-delay-2 hover-lift">
                 <div class="stat-icon-wrap success"><i class="fas fa-chart-pie"></i></div>
                 <div class="stat-label">Average Score</div>
                 <div class="stat-value">{{ average_marks }}%</div>
             </div>
         </div>
 
-        <section class="charts-section">
+        <section class="charts-section reveal">
             <h2 class="section-title"><i class="fas fa-chart-bar" style="color:var(--ds-accent);"></i> Performance Analytics</h2>
             <div class="charts-grid">
-                <div class="chart-card">
+                <div class="chart-card hover-lift">
                     <h3><i class="fas fa-chart-bar"></i> Marks Distribution</h3>
                     <div class="chart-wrapper"><canvas id="distributionChart"></canvas></div>
                 </div>
-                <div class="chart-card">
+                <div class="chart-card hover-lift">
                     <h3><i class="fas fa-chart-line"></i> Subject Performance</h3>
                     <div class="chart-wrapper"><canvas id="subjectChart"></canvas></div>
                 </div>
-                <div class="chart-card">
+                <div class="chart-card hover-lift">
                     <h3><i class="fas fa-trophy"></i> Top Students</h3>
                     <div class="chart-wrapper"><canvas id="topStudentsChart"></canvas></div>
                 </div>
             </div>
         </section>
 
-        <section class="quick-actions-section">
+        <section class="quick-actions-section reveal">
             <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
             <div class="action-grid">
                 <a href="/marks-list/" class="action-item"><i class="fas fa-list"></i> View All Marks</a>
-                <a href="/mark-sheet/" class="action-item"><i class="fas fa-file-alt"></i> Generate Mark Sheet</a>
+                <a href="/select-mark-sheet/" class="action-item"><i class="fas fa-file-alt"></i> Generate Mark Sheet</a>
                 <a href="/student-analysis/" class="action-item"><i class="fas fa-robot"></i> AI Analysis</a>
                 {% if show_admin_panel %}
                 <a href="/admin/" class="action-item" target="_blank" rel="noopener noreferrer"><i class="fas fa-cog"></i> Admin Panel</a>
@@ -65,7 +65,7 @@
     {% include 'core/partials/theme_script.html' %}
     <script>
         window.onThemeChange = function() { if (typeof loadCharts === 'function') loadCharts(); };
-        document.addEventListener('DOMContentLoaded', function() { loadCharts(); });
+        document.addEventListener('DOMContentLoaded', function() { loadCharts(); if (typeof AcadStatUI !== 'undefined') AcadStatUI.initScrollReveal(); });
 
         async function loadCharts() {
             try {
@@ -101,8 +101,8 @@
                     type: 'line',
                     data: {
                         labels: data.subjects.labels,
-                        datasets: [{ label: 'Avg %', data: data.subjects.data, borderColor: '#667eea',
-                            backgroundColor: 'rgba(102,126,234,0.15)', fill: true, tension: 0.4 }]
+                        datasets: [{ label: 'Avg %', data: data.subjects.data, borderColor: '#0a0a0a',
+                            backgroundColor: 'rgba(10,10,10,0.08)', fill: true, tension: 0.4 }]
                     },
                     options: { responsive: true, maintainAspectRatio: false,
                         scales: { y: { beginAtZero: true, max: 100, grid: { color: gridColor } }, x: { grid: { display: false } } } }

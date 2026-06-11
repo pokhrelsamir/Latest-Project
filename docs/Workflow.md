@@ -4,6 +4,12 @@
 
 ```
 djangoacadstat/
+├── environment/             # Python venv, dependencies, env config
+│   ├── requirements.txt
+│   ├── setup_venv.bat       # Windows venv setup
+│   ├── setup_venv.sh        # Linux/macOS venv setup
+│   ├── .env.example
+│   └── venv/                # Virtual environment (local only, gitignored)
 ├── academicsys/
 │   ├── __init__.py
 │   ├── settings.py          # Django settings, AI config, email config
@@ -53,6 +59,8 @@ djangoacadstat/
 │   └── backups/             # JSON backup files
 ├── samples/
 │   └── bulk_marks_upload/   # Excel upload templates
+├── manage.py
+└── README.md
 ```
 
 ## Project Overview
@@ -218,12 +226,15 @@ python manage.py send_notifications --threshold 60 --dry-run  # Preview only
 # Clone and setup
 cd djangoacadstat
 
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
+# Create virtual environment (see environment/README.md)
+environment\setup_venv.bat          # Windows
+# bash environment/setup_venv.sh    # Linux/macOS
+
+environment\venv\Scripts\activate   # Windows
+# source environment/venv/bin/activate  # Linux/macOS
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r environment\requirements.txt
 
 # Run migrations
 python manage.py migrate

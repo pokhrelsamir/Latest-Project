@@ -4,10 +4,10 @@
  */
 
 /* ── Extended tokens (use with style.css variables) ── */
-:root, [data-theme="dark"], [data-theme="light"] {
-    --ds-accent: #667eea;
-    --ds-accent-2: #764ba2;
-    --ds-accent-soft: rgba(102, 126, 234, 0.12);
+[data-theme="dark"], [data-theme="light"] {
+    --ds-accent: #0a0a0a;
+    --ds-accent-2: #27272a;
+    --ds-accent-soft: rgba(10, 10, 10, 0.06);
     --ds-success: #10b981;
     --ds-warning: #f59e0b;
     --ds-danger: #ef4444;
@@ -19,11 +19,11 @@
     --ds-text-base: 0.875rem;
     --ds-text-md: 0.9375rem;
     --ds-text-lg: clamp(1.15rem, 2.5vw, 1.45rem);
-    --ds-gradient: linear-gradient(135deg, var(--ds-accent), var(--ds-accent-2));
+    --ds-gradient: linear-gradient(135deg, #0a0a0a 0%, #27272a 100%);
 }
 
 [data-theme="dark"] {
-    --ds-accent-soft: rgba(102, 126, 234, 0.18);
+    --ds-accent-soft: rgba(255, 255, 255, 0.06);
     --ds-input-disabled-bg: var(--bg-secondary);
     --ds-input-disabled-color: var(--text-muted);
 }
@@ -39,8 +39,12 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: var(--bg-primary);
+    background: transparent;
     color: var(--text-primary);
+}
+
+.app-page:not(.login-page-wrapper) {
+    --app-glass-blur: 14px;
 }
 
 .app-shell {
@@ -65,12 +69,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1.25rem;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 200;
-    box-shadow: var(--shadow-sm);
     color: var(--text-primary);
 }
 
@@ -141,11 +142,7 @@
     width: 18px;
     height: 18px;
 }
-
-.app-page .theme-toggle.ds-toggle .sun-icon { display: none; }
-.app-page .theme-toggle.ds-toggle .moon-icon { display: block; }
-[data-theme="light"] .app-page .theme-toggle.ds-toggle .sun-icon { display: block; }
-[data-theme="light"] .app-page .theme-toggle.ds-toggle .moon-icon { display: none; }
+/* Icon visibility handled in theme-toggle.css */
 
 /* ── Typography ── */
 .app-page h1, .app-page .page-title {
@@ -229,6 +226,8 @@
     margin-bottom: 1rem;
     transition: box-shadow 0.25s ease;
 }
+
+/* Glass panel borders/backgrounds — see acadstat-theme.css */
 
 .section-card:hover { box-shadow: var(--shadow-md); }
 
@@ -360,33 +359,31 @@
     align-items: center;
     gap: 0.65rem;
     padding: 0.75rem 1rem;
-    background: var(--bg-primary);
+    background-color: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--ds-radius-sm);
     text-decoration: none;
     color: var(--text-primary);
     font-size: var(--ds-text-sm);
     font-weight: 500;
-    transition: all 0.2s;
+    transition: color 0.25s, border-color 0.25s, transform 0.2s, box-shadow 0.2s;
 }
 
 .action-item:hover {
-    background: var(--ds-accent);
-    color: #fff;
-    border-color: var(--ds-accent);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+    color: #ffffff;
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
 }
 
 .action-item i {
     font-size: 0.9rem;
     width: 18px;
     text-align: center;
-    color: var(--ds-accent);
-    transition: color 0.2s;
+    color: var(--text-secondary);
+    transition: color 0.25s;
 }
 
-.action-item:hover i { color: #fff; }
+.action-item:hover i { color: #ffffff; }
 
 /* ── Forms ── */
 .app-page .form-group,
@@ -495,11 +492,12 @@
 .btn.ds-primary {
     background: var(--ds-gradient);
     color: #fff;
-    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
 .btn.ds-primary:hover {
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px);
 }
 
 .btn.ds-success { background: var(--ds-success); color: #fff; }
@@ -672,7 +670,7 @@
 .ds-table tbody tr.selected,
 .app-page .marks-table tbody tr.selected {
     background: var(--ds-accent-soft);
-    outline: 1px solid rgba(102, 126, 234, 0.3);
+    outline: 1px solid rgba(10, 10, 10, 0.15);
 }
 
 .empty-state {
@@ -725,7 +723,7 @@
     line-height: 1.5;
     color: var(--text-secondary);
     background: var(--ds-accent-soft);
-    border: 1px solid rgba(102, 126, 234, 0.2);
+    border: 1px solid var(--border-color);
     border-radius: var(--ds-radius-sm);
     margin-bottom: 1rem;
 }

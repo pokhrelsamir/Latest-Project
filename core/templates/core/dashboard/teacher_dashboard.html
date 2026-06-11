@@ -17,7 +17,7 @@
                 <span>{{ teacher.user.username }}</span>
             </div>
             <div class="actions-bar" style="justify-content:flex-start;border-top:none;padding-top:0.75rem;margin-top:0;">
-                <button type="button" class="btn ds ds-ghost" onclick="openPasswordModal()"><i class="fas fa-lock"></i> Change Password</button>
+                <button type="button" class="btn ds ds-ghost" data-open-password-modal><i class="fas fa-lock"></i> Change Password</button>
             </div>
         </div>
 
@@ -42,7 +42,7 @@
             <div class="action-grid">
                 <a href="/add-marks/" class="action-item"><i class="fas fa-plus-circle"></i> Add Marks</a>
                 <a href="/marks-list/" class="action-item"><i class="fas fa-list"></i> View All Marks</a>
-                <a href="/mark-sheet/" class="action-item"><i class="fas fa-file-alt"></i> Generate Mark Sheet</a>
+                <a href="/select-mark-sheet/" class="action-item"><i class="fas fa-file-alt"></i> Generate Mark Sheet</a>
                 <a href="/student-analysis/" class="action-item"><i class="fas fa-robot"></i> AI Analysis</a>
             </div>
         </section>
@@ -110,88 +110,6 @@
         </section>
         {% endif %}
     </main>
-
-    <div class="password-modal-overlay" id="passwordModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;visibility:hidden;transition:all 0.3s;">
-        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--ds-radius);padding:1.5rem;width:90%;max-width:400px;transform:scale(0.95);transition:transform 0.3s;" id="passwordModalContent">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h3 class="section-title" style="margin:0;"><i class="fas fa-lock"></i> Change Password</h3>
-                <button type="button" onclick="closePasswordModal()" style="background:none;border:none;font-size:1.25rem;color:var(--text-muted);cursor:pointer;">×</button>
-            </div>
-            <form id="passwordForm">
-                <div class="form-group ds">
-                    <label for="currentPassword">Current Password</label>
-                    <input type="password" id="currentPassword" required>
-                </div>
-                <div class="form-group ds">
-                    <label for="newPassword">New Password</label>
-                    <input type="password" id="newPassword" required minlength="4">
-                </div>
-                <div class="form-group ds">
-                    <label for="confirmPassword">Confirm New Password</label>
-                    <input type="password" id="confirmPassword" required minlength="4">
-                </div>
-                <div class="alert-banner error" id="passwordError" style="display:none;"></div>
-                <div class="alert-banner success" id="passwordSuccess" style="display:none;"></div>
-                <div class="actions-bar" style="border:none;padding:0;margin-top:0.75rem;">
-                    <button type="button" class="btn ds ds-ghost" onclick="closePasswordModal()">Cancel</button>
-                    <button type="submit" class="btn ds ds-primary">Save Password</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-    function openPasswordModal() {
-        const m = document.getElementById('passwordModal');
-        m.style.opacity = '1'; m.style.visibility = 'visible';
-        document.getElementById('passwordModalContent').style.transform = 'scale(1)';
-    }
-    function closePasswordModal() {
-        const m = document.getElementById('passwordModal');
-        m.style.opacity = '0'; m.style.visibility = 'hidden';
-        document.getElementById('passwordForm').reset();
-        document.getElementById('passwordError').style.display = 'none';
-        document.getElementById('passwordSuccess').style.display = 'none';
-    }
-    document.getElementById('passwordForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const errorEl = document.getElementById('passwordError');
-        const successEl = document.getElementById('passwordSuccess');
-        errorEl.style.display = 'none'; successEl.style.display = 'none';
-        const newPassword = document.getElementById('newPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-        if (newPassword !== confirmPassword) {
-            errorEl.textContent = 'New passwords do not match';
-            errorEl.style.display = 'block';
-            return;
-        }
-        try {
-            const response = await fetch('/change-password/', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    current_password: document.getElementById('currentPassword').value,
-                    new_password: newPassword
-                })
-            });
-            const data = await response.json();
-            if (data.success) {
-                successEl.textContent = data.message;
-                successEl.style.display = 'block';
-                setTimeout(closePasswordModal, 1500);
-            } else {
-                errorEl.textContent = data.message;
-                errorEl.style.display = 'block';
-            }
-        } catch (err) {
-            errorEl.textContent = 'An error occurred. Please try again.';
-            errorEl.style.display = 'block';
-        }
-    });
-    document.getElementById('passwordModal').addEventListener('click', function(e) {
-        if (e.target === this) closePasswordModal();
-    });
-    </script>
 
     {% include 'core/partials/theme_script.html' %}
 </body>

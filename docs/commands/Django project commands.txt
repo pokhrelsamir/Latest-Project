@@ -1,9 +1,10 @@
 1.Python virtual environment creation:
-python -m venv venv
+environment\setup_venv.bat
+(or manually: python -m venv environment\venv)
 
 
 Virtual environment activation:
-venv\Scripts\activate
+environment\venv\Scripts\activate
 
 To deactivate:
 deactivate
@@ -27,9 +28,9 @@ pip install psycopg[binary]
 
 To install all the pip from the list we can run
 
-pip install -r requirements.txt
+pip install -r environment\requirements.txt
 
-that is being mentioned or written in requirements.txt
+that is being mentioned or written in environment\requirements.txt
 
 
 
@@ -113,7 +114,7 @@ AI Analysis Integration:
 
 Option 1:
 
-python -m pip install -r requirements.txt
+python -m pip install -r environment\requirements.txt
 python manage.py migrate
 python manage.py send_notifications --dry-run
 python manage.py send_notifications --threshold 60
@@ -122,7 +123,7 @@ python manage.py send_notifications --threshold 60
 
 Option 2: Or if python doesn't work, trying as python3:
 
-py -m pip install -r requirements.txt
+py -m pip install -r environment\requirements.txt
 py manage.py migrate
 py manage.py send_notifications --dry-run
 

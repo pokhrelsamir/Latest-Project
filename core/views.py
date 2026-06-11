@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from .forms import (ResultForm, GradeScaleForm, TeacherEvaluationForm, InvoiceQuickCreateForm,
                     SupportTicketForm, CertificateGenerateForm, LessonPlanForm, SyllabusCoverageForm,
                     GradingRubricForm, RubricCriterionForm, ExamSeatingPlanForm, QuestionBankForm,
@@ -65,6 +65,7 @@ from core.models import UserProfile, LicenseKey, SystemBackup, SystemConfig
 from core.models import UserRole, ParentUser, ResultPublishSession, ResultSessionEntry
 from django.db.models import Q, Sum, Avg, Count, F, FloatField, ExpressionWrapper, Case, When
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import User
 from functools import wraps
@@ -388,6 +389,282 @@ def student_gpa_forecasting(request):
     return render(request, 'core/dashboard/gpa_forecasting.html', context)
 
 
+@login_required
+def student_analytics(request):
+    """Detailed marks analytics and charts for the logged-in student."""
+    if get_teacher_profile(request.user):
+        messages.info(request, 'Subject analytics is available on the teacher dashboard.')
+        return redirect('core:subject_analytics')
+
+    student = get_student_for_user(request.user)
+    if not student:
+        messages.error(request, 'Student profile not found.')
+        return redirect('core:dashboard')
+
+    terminal = request.GET.get('terminal', 'all')
+    subject_id_raw = request.GET.get('subject', '').strip()
+    terminals = ['1st', '2nd', '3rd', 'Final']
+    run_terminals = terminals if terminal == 'all' else (
+        [terminal] if terminal in terminals else terminals
+    )
+
+    subject_id = int(subject_id_raw) if subject_id_raw.isdigit() else None
+    filtered_qs = Result.objects.filter(student=student).select_related('subject')
+    if subject_id is not None:
+        filtered_qs = filtered_qs.filter(subject_id=subject_id)
+
+    stats_qs = filtered_qs
+    if terminal != 'all' and terminal in terminals:
+        stats_qs = stats_qs.filter(terminal=terminal)
+
+    pct_list = []
+    for r in stats_qs:
+        pct = _analytics_result_pct(r)
+        if pct is not None:
+            pct_list.append(pct)
+
+    total = len(pct_list)
+    avg_pct = round(sum(pct_list) / total, 1) if total else 0
+    highest_pct = round(max(pct_list), 1) if pct_list else 0
+    lowest_pct = round(min(pct_list), 1) if pct_list else 0
+    pass_count = sum(1 for p in pct_list if p >= 40)
+    pass_rate = round((pass_count / total) * 100, 1) if total else 0
+    below_40 = sum(1 for p in pct_list if p < 40)
+
+    insight_lines = [
+        f'Analysing {student.name} (Class {student.student_class} — Section {student.section}).',
+    ]
+    if below_40 > 0:
+        s = 's' if below_40 > 1 else ''
+        insight_lines.append(
+            f'{below_40} result{s} below 40% — focus revision on weaker subjects.'
+        )
+    if avg_pct >= 80:
+        insight_lines.append(f'Excellent average at {avg_pct}%.')
+    elif avg_pct >= 70:
+        insight_lines.append(f'Good progress — average is {avg_pct}%.')
+    elif avg_pct >= 50:
+        insight_lines.append(f'Average is {avg_pct}%. Focus on weaker subjects.')
+    elif total:
+        insight_lines.append(f'Average is {avg_pct}%. Needs attention — review study plan.')
+
+    seen_subject_ids = set()
+    chart_subjects = []
+    for r in filtered_qs.order_by('subject__name'):
+        if r.subject_id not in seen_subject_ids:
+            seen_subject_ids.add(r.subject_id)
+            chart_subjects.append(r.subject)
+
+    available_subjects = list(
+        Subject.objects.filter(result__student=student).distinct().order_by('name')
+    )
+    subject_colors = ANALYTICS_CHART_COLORS
+    term_colors = ANALYTICS_TERMINAL_COLORS
+
+    terminal_wise_datasets = []
+    for i, subj in enumerate(chart_subjects):
+        color = subject_colors[i % len(subject_colors)]
+        terminal_wise_datasets.append(
+            _analytics_line_dataset(
+                subj.name,
+                [
+                    _analytics_avg_pct(filtered_qs.filter(subject=subj, terminal=t))
+                    for t in run_terminals
+                ],
+                color,
+                fill=False,
+            )
+        )
+
+    subject_wise_datasets = []
+    for t in run_terminals:
+        color = term_colors.get(t, subject_colors[len(subject_wise_datasets) % len(subject_colors)])
+        subject_wise_datasets.append(
+            _analytics_line_dataset(
+                f'{t} Terminal',
+                [
+                    _analytics_avg_pct(filtered_qs.filter(subject=subj, terminal=t))
+                    for subj in chart_subjects
+                ],
+                color,
+                fill=False,
+            )
+        )
+
+    dist_bins = [
+        ('0–39% (Fail)', 0, 39),
+        ('40–59%', 40, 59),
+        ('60–79%', 60, 79),
+        ('80–100%', 80, 100),
+    ]
+    distribution_chart = {
+        'labels': [b[0] for b in dist_bins],
+        'datasets': [{
+            'label': 'Your results',
+            'data': [
+                sum(1 for p in pct_list if lo <= p <= hi)
+                for _, lo, hi in dist_bins
+            ],
+            'backgroundColor': ['#ef4444', '#f59e0b', '#10b981', '#6366f1'],
+            'borderRadius': 6,
+        }],
+    }
+
+    pass_fail_chart = {
+        'labels': ['Pass (≥40%)', 'Fail (<40%)'],
+        'datasets': [{
+            'data': [pass_count, total - pass_count],
+            'backgroundColor': ['#10b981', '#ef4444'],
+            'borderWidth': 0,
+        }],
+    }
+
+    term_indices = list(range(1, len(run_terminals) + 1))
+    student_pcts = [
+        _analytics_avg_pct(filtered_qs.filter(terminal=t))
+        for t in run_terminals
+    ]
+    reg_line, reg_slope = _analytics_linear_regression(term_indices, student_pcts)
+    regression_chart = {
+        'labels': run_terminals,
+        'scatter': [{'x': i, 'y': y} for i, y in zip(term_indices, student_pcts) if y is not None],
+        'regression': reg_line,
+        'slope': reg_slope,
+        'title': f'{student.name} — regression trend',
+    }
+
+    section_results = Result.objects.filter(
+        student__student_class=student.student_class,
+        student__section=student.section,
+    )
+    class_avg_by_term = [
+        _analytics_avg_pct(section_results.filter(terminal=t))
+        for t in run_terminals
+    ]
+    student_terminal_chart = {
+        'labels': run_terminals,
+        'datasets': [{
+            'label': 'Your average',
+            'data': student_pcts,
+            'backgroundColor': [
+                _analytics_hex_rgba(term_colors.get(t, '#6366f1'), 0.85)
+                for t in run_terminals
+            ],
+            'borderColor': [term_colors.get(t, '#6366f1') for t in run_terminals],
+            'borderWidth': 2,
+            'borderRadius': 6,
+        }],
+    }
+
+    comparison_chart = {
+        'labels': run_terminals,
+        'datasets': [
+            {
+                'label': 'Your average',
+                'data': student_pcts,
+                'backgroundColor': _analytics_hex_rgba('#6366f1', 0.85),
+                'borderColor': '#6366f1',
+                'borderWidth': 2,
+                'borderRadius': 6,
+            },
+            {
+                'label': 'Section average',
+                'data': class_avg_by_term,
+                'backgroundColor': _analytics_hex_rgba('#f59e0b', 0.85),
+                'borderColor': '#f59e0b',
+                'borderWidth': 2,
+                'borderRadius': 6,
+            },
+        ],
+    }
+
+    breakdown_terminal = run_terminals[-1] if terminal == 'all' else terminal
+    subject_breakdown_chart = {
+        'labels': [s.name for s in chart_subjects],
+        'datasets': [{
+            'label': f'{breakdown_terminal} Terminal %' if terminal != 'all' else 'Latest terminal %',
+            'data': [
+                _analytics_avg_pct(
+                    filtered_qs.filter(subject=subj, terminal=breakdown_terminal)
+                )
+                for subj in chart_subjects
+            ],
+            'backgroundColor': [
+                subject_colors[i % len(subject_colors)] for i in range(len(chart_subjects))
+            ],
+        }],
+    }
+
+    trend_rows = []
+    for subj in chart_subjects:
+        mbt = {}
+        for r in filtered_qs.filter(subject=subj):
+            pct = _analytics_result_pct(r)
+            if pct is not None:
+                mbt[r.terminal] = pct
+        prev_vals = [mbt.get(t) for t in run_terminals if mbt.get(t) is not None]
+        if len(prev_vals) >= 2:
+            diff = prev_vals[-1] - prev_vals[-2]
+            arrow = 'up' if diff > 0.5 else ('down' if diff < -0.5 else 'same')
+        else:
+            arrow = 'same'
+        marks_list = [mbt.get(t) for t in run_terminals]
+        trend_rows.append({
+            'subject': subj,
+            'marks_list': marks_list,
+            'mark_tuples': list(zip(run_terminals, marks_list)),
+            'arrow': arrow,
+        })
+
+    return render(request, 'core/dashboard/student_analytics.html', {
+        'student': student,
+        'user': request.user,
+        'is_student': True,
+        'subject_obj': Subject.objects.filter(id=subject_id).first() if subject_id else None,
+        'subject_id': subject_id_raw,
+        'terminal': terminal,
+        'terminals': terminals,
+        'run_terminals': run_terminals,
+        'available_subjects': available_subjects,
+        'total': total,
+        'avg_pct': avg_pct,
+        'highest_pct': highest_pct,
+        'lowest_pct': lowest_pct,
+        'pass_rate': pass_rate,
+        'pass_count': pass_count,
+        'below_40': below_40,
+        'insight_lines': insight_lines,
+        'trend_rows': trend_rows,
+        'terminal_wise_chart': {
+            'labels': run_terminals,
+            'datasets': terminal_wise_datasets,
+        },
+        'subject_wise_chart': {
+            'labels': [s.name for s in chart_subjects],
+            'datasets': subject_wise_datasets,
+        },
+        'distribution_chart': distribution_chart,
+        'regression_chart': regression_chart,
+        'pass_fail_chart': pass_fail_chart,
+        'student_terminal_chart': student_terminal_chart,
+        'comparison_chart': comparison_chart,
+        'subject_breakdown_chart': subject_breakdown_chart,
+        'chart_color_legend': {
+            'subjects': [
+                {'name': s.name, 'color': subject_colors[i % len(subject_colors)]}
+                for i, s in enumerate(chart_subjects)
+            ],
+            'terminals': [
+                {
+                    'name': f'{t} Terminal',
+                    'color': term_colors.get(t, subject_colors[i % len(subject_colors)]),
+                }
+                for i, t in enumerate(run_terminals)
+            ],
+        },
+    })
+
+
 # 👨‍🏫 TEACHER DASHBOARD
 @teacher_required
 def teacher_dashboard(request):
@@ -468,25 +745,37 @@ def add_marks(request):
     request.teacher = teacher
 
     subject_options = list(teacher.subjects.all().order_by('name').values('id', 'name', 'total_marks', 'code'))
-    student_options = list(teacher.students.all().order_by('name').values('id', 'name', 'roll_number', 'student_class', 'section'))
+    student_rows = list(teacher.students.all().order_by('name').values('id', 'name', 'roll_number', 'student_class', 'section'))
+    classes = sorted({s['student_class'] for s in student_rows if s['student_class']})
+    sections_by_class = {}
+    for s in student_rows:
+        cls = s['student_class']
+        if cls not in sections_by_class:
+            sections_by_class[cls] = []
+        if s['section'] and s['section'] not in sections_by_class[cls]:
+            sections_by_class[cls].append(s['section'])
+    for cls in sections_by_class:
+        sections_by_class[cls].sort()
     subject_total_map = {str(s['id']): s['total_marks'] for s in subject_options}
     subject_name_map = {str(s['id']): s['name'] for s in subject_options}
 
     if not subject_options:
         messages.warning(request, 'No subjects assigned to you yet. Ask admin to assign subjects in the admin panel.')
-    if not student_options:
+    if not student_rows:
         messages.warning(request, 'No students assigned to you yet. Ask admin to assign students in the admin panel.')
 
     return render(request, 'core/dashboard/add_marks.html', {
         'subject_options': subject_options,
-        'student_options': student_options,
+        'student_rows': student_rows,
+        'classes': classes,
+        'sections_by_class': sections_by_class,
         'is_teacher': True,
         'teacher': teacher,
         'subject_total_map_json': json.dumps(subject_total_map),
         'subject_name_map_json': json.dumps(subject_name_map),
         'terminal_choices': TERMINAL_CHOICES,
         'has_subjects': bool(subject_options),
-        'has_students': bool(student_options),
+        'has_students': bool(student_rows),
     })
 
 
@@ -1023,6 +1312,63 @@ def delete_marks(request, mark_id):
 
 
 
+def _marksheet_verify_payload(doc_id):
+    """Resolve marksheet authenticity from doc_id against live Result records."""
+    import re
+    from django.utils import timezone
+
+    valid_format = bool(re.match(r'^ACAD-\d{8}-\d+-[\w-]+$', doc_id))
+    parts = doc_id.split('-') if valid_format else []
+    student_id = parts[2] if len(parts) >= 3 and parts[2].isdigit() else None
+    student = Student.objects.filter(id=student_id).first() if student_id else None
+    terminal_raw = '-'.join(parts[3:]) if len(parts) > 3 else ''
+    if terminal_raw in ('1st', '2nd', '3rd', 'Final'):
+        terminal_display = terminal_raw
+    elif terminal_raw:
+        terminal_display = terminal_raw.replace('-', ' ').title()
+    else:
+        terminal_display = 'Exam'
+
+    results = []
+    has_marks = False
+    if student and terminal_raw:
+        terminal_key = terminal_raw if terminal_raw in ('1st', '2nd', '3rd', 'Final') else None
+        if not terminal_key and terminal_raw == 'all':
+            results = list(Result.objects.filter(student=student).select_related('subject'))
+            has_marks = bool(results)
+        elif terminal_key:
+            results = list(
+                Result.objects.filter(student=student, terminal=terminal_key).select_related('subject')
+            )
+            has_marks = bool(results)
+
+    all_passed = False
+    overall_percentage = 0
+    if results:
+        total_obt = sum(r.marks_obtained for r in results)
+        total_pos = sum(r.total_marks for r in results)
+        overall_percentage = round((total_obt / total_pos * 100) if total_pos > 0 else 0, 1)
+        all_passed = all(
+            (r.marks_obtained / r.total_marks * 100) >= 40 for r in results if r.total_marks > 0
+        )
+
+    is_valid = valid_format and (student is not None) and has_marks
+    return {
+        'valid': is_valid,
+        'doc_id': doc_id,
+        'student_id': student.id if student else None,
+        'student_name': student.name if student else None,
+        'student_class': student.student_class if student else None,
+        'student_section': student.section if student else None,
+        'terminal': terminal_raw,
+        'terminal_display': terminal_display,
+        'subjects_count': len(results),
+        'overall_percentage': overall_percentage,
+        'result': 'PASS' if all_passed else ('FAIL' if results else None),
+        'verified_at': timezone.now().isoformat(),
+    }
+
+
 # MARK SHEET VIEW
 @login_required
 def mark_sheet(request, student_id=None, terminal=None):
@@ -1031,18 +1377,17 @@ def mark_sheet(request, student_id=None, terminal=None):
     from io import BytesIO
     import base64
     from datetime import datetime
-    
+    from django.urls import reverse
+
+    if not student_id:
+        return redirect('core:select_mark_sheet')
+
     # Check teacher permissions
     teacher = get_teacher_profile(request.user)
     if teacher and not teacher.is_admin:
-        # Teachers can only view mark sheets for their students
-        if student_id:
-            student = get_object_or_404(Student, id=student_id)
-            if not teacher.students.filter(id=student.id).exists():
-                return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
-        else:
-            # If no student_id provided, show error or redirect
-            return JsonResponse({'success': False, 'message': 'Student ID required'}, status=400)
+        student = get_object_or_404(Student, id=student_id)
+        if not teacher.students.filter(id=student.id).exists():
+            return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
     
     # Get all students for selection dropdown
     students = Student.objects.all().order_by('name')
@@ -1052,7 +1397,7 @@ def mark_sheet(request, student_id=None, terminal=None):
         results = Result.objects.filter(
             student_id=student_id,
             terminal=terminal
-        ).select_related('student', 'subject')
+        ).select_related('student', 'subject').order_by('subject__name')
         selected_student = Student.objects.get(id=student_id)
     elif student_id:
         # Get specific student's results (all terminals)
@@ -1064,47 +1409,45 @@ def mark_sheet(request, student_id=None, terminal=None):
         selected_student = None
         terminal = 'All'
     
-    # Calculate totals
-    total_subjects = len(results) if results else 0
-    total_marks_obtained = sum(r.marks_obtained for r in results)
-    total_marks = sum(r.total_marks for r in results)
-    overall_percentage = (total_marks_obtained / total_marks * 100) if total_marks > 0 else 0
+    from core.grading_utils import summarize_terminal_results
+
+    summary = summarize_terminal_results(results)
+    results_with_grades = summary['student_results']
+    total_subjects = summary['total_subjects']
+    total_marks_obtained = summary['total_marks_obtained']
+    total_marks = summary['total_marks']
+    overall_percentage = summary['overall_percentage']
+    gpa = summary['gpa']
+    all_passed = summary['all_passed']
+    overall_grade = summary['overall_grade']
     
-    # Determine overall pass/fail (all subjects must have >= 40%)
-    all_passed = all((r.marks_obtained / r.total_marks * 100) >= 40 for r in results) if results else False
-    
-    # Build results list with grade and percentage attributes
-    results_with_grades = []
-    for r in results:
-        pct = (r.marks_obtained / r.total_marks * 100) if r.total_marks > 0 else 0
-        results_with_grades.append({
-            'result': r,
-            'grade': 'P' if pct >= 40 else 'F',
-            'percentage': round(pct, 1)
-        })
-    
-    # Generate college QR code
-    college_data = "SOCH_COLLEGE_OF_IT|RANIPAWA-12|POKHARA|ESTD:2020"
+    # Get current academic year
+    academic_year = datetime.now().year
+    terminal_slug = (terminal or 'all').replace(' ', '-')
+
+    # Generate document ID & verification QR (scan → verify page → Soch College website)
+    doc_id = f"ACAD-{datetime.now().strftime('%Y%m%d')}-{student_id}-{terminal_slug}"
+    verify_url = request.build_absolute_uri(
+        reverse('core:marksheet_verify', kwargs={'doc_id': doc_id})
+    )
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
     )
-    qr.add_data(college_data)
+    qr.add_data(verify_url)
     qr.make(fit=True)
-    
-    img = qr.make_image(fill_color="black", back_color="white")
+
+    img = qr.make_image(fill_color="#0a0a0a", back_color="white")
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     college_qr_code = base64.b64encode(buffer.getvalue()).decode()
     
-    # Get current academic year
-    academic_year = datetime.now().year
-    
-    # Generate document ID
-    doc_id = f"SOCH-{datetime.now().strftime('%Y%m%d')}-{student_id or 'DEMO'}"
-    
+    verify_api_url = request.build_absolute_uri(
+        reverse('core:marksheet_verify_api', kwargs={'doc_id': doc_id})
+    )
+
     context = {
         'students': students,
         'student_results': results_with_grades,
@@ -1114,43 +1457,84 @@ def mark_sheet(request, student_id=None, terminal=None):
         'total_marks_obtained': total_marks_obtained,
         'total_marks': total_marks,
         'overall_percentage': round(overall_percentage, 2),
+        'gpa': gpa,
         'all_passed': all_passed,
+        'overall_grade': overall_grade,
         'academic_year': f"{academic_year}-{academic_year + 1}",
         'college_qr_code': college_qr_code,
         'doc_id': doc_id,
+        'verify_url': verify_url,
+        'verify_api_url': verify_api_url,
+        'soch_college_url': 'https://sochcollege.edu.np/',
         'is_teacher': teacher is not None,
         'teacher': teacher,
     }
-    
+
     return render(request, 'core/dashboard/mark_sheet.html', context)
+
+
+def marksheet_verify_api(request, doc_id):
+    """Public JSON endpoint — live authenticity check for QR scans and on-page status."""
+    payload = _marksheet_verify_payload(doc_id)
+    status = 200 if payload['valid'] else 404
+    return JsonResponse(payload, status=status)
+
+
+def marksheet_verify(request, doc_id):
+    """Public QR verification — confirms authenticity then redirects to Soch College."""
+    from datetime import datetime
+
+    payload = _marksheet_verify_payload(doc_id)
+    verified_at = datetime.fromisoformat(payload['verified_at'])
+
+    return render(request, 'core/dashboard/marksheet_verify.html', {
+        'doc_id': doc_id,
+        'is_valid': payload['valid'],
+        'student_name': payload['student_name'],
+        'terminal_display': payload['terminal_display'],
+        'subjects_count': payload['subjects_count'],
+        'overall_percentage': payload['overall_percentage'],
+        'result': payload['result'],
+        'verified_at': verified_at,
+        'soch_college_url': 'https://sochcollege.edu.np/',
+    })
 
 
 # SELECT STUDENT FOR MARK SHEET
 @login_required
 def select_mark_sheet(request):
     """Student selection page for mark sheet generation"""
-    # Check if user is teacher
     teacher = get_teacher_profile(request.user)
-    
-    # Get all students for selection
+
     if teacher and not teacher.is_admin:
-        # Teachers can only see their students
-        students = teacher.students.all().order_by('name')
+        students_qs = teacher.students.all().order_by('name')
     else:
-        # Admin can see all students
-        students = Student.objects.all().order_by('name')
-    
-    # Get unique terminals
-    terminals = Result.objects.values_list('terminal', flat=True).distinct()
-    
-    context = {
-        'students': students,
+        students_qs = Student.objects.all().order_by('name')
+
+    student_rows = list(students_qs.values(
+        'id', 'name', 'roll_number', 'student_class', 'section'
+    ))
+    classes = sorted({s['student_class'] for s in student_rows if s['student_class']})
+    sections_by_class = {}
+    for s in student_rows:
+        cls = s['student_class']
+        if cls not in sections_by_class:
+            sections_by_class[cls] = []
+        if s['section'] and s['section'] not in sections_by_class[cls]:
+            sections_by_class[cls].append(s['section'])
+    for cls in sections_by_class:
+        sections_by_class[cls].sort()
+
+    terminals = ['1st', '2nd', '3rd', 'Final']
+
+    return render(request, 'core/dashboard/select_mark_sheet.html', {
+        'student_rows': student_rows,
+        'classes': classes,
+        'sections_by_class': sections_by_class,
         'terminals': terminals,
         'is_teacher': teacher is not None,
         'teacher': teacher,
-    }
-    
-    return render(request, 'core/dashboard/select_mark_sheet.html', context)
+    })
 
 
 #  STUDENT ANALYSIS VIEW
@@ -6549,30 +6933,147 @@ def scheduled_tasks_list(request):
 
 
 # %% T10 SMART SUBJECT ANALYSIS %%
+
+def _analytics_result_pct(result):
+    if result.total_marks > 0:
+        return round(result.marks_obtained / result.total_marks * 100, 1)
+    return None
+
+
+def _analytics_avg_pct(results):
+    values = [_analytics_result_pct(r) for r in results]
+    values = [v for v in values if v is not None]
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _analytics_linear_regression(xs, ys):
+    pairs = [(x, y) for x, y in zip(xs, ys) if y is not None]
+    if len(pairs) < 2:
+        return [None for _ in xs], None
+    xs_clean = [p[0] for p in pairs]
+    ys_clean = [p[1] for p in pairs]
+    n = len(xs_clean)
+    x_mean = sum(xs_clean) / n
+    y_mean = sum(ys_clean) / n
+    num = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs_clean, ys_clean))
+    den = sum((x - x_mean) ** 2 for x in xs_clean)
+    if den == 0:
+        return [round(y_mean, 1) for _ in xs], 0.0
+    slope = num / den
+    intercept = y_mean - slope * x_mean
+    return [round(slope * x + intercept, 1) for x in xs], round(slope, 2)
+
+
+ANALYTICS_CHART_COLORS = [
+    "#6366f1", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
+    "#f97316", "#14b8a6", "#3b82f6", "#a855f7",
+]
+
+ANALYTICS_TERMINAL_COLORS = {
+    "1st": "#6366f1",
+    "2nd": "#10b981",
+    "3rd": "#f59e0b",
+    "Final": "#ef4444",
+}
+
+
+def _analytics_hex_rgba(hex_color, alpha=0.15):
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) != 6:
+        return f"rgba(99, 102, 241, {alpha})"
+    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def _analytics_line_dataset(label, data, color, fill=True):
+    return {
+        "label": label,
+        "data": data,
+        "borderColor": color,
+        "backgroundColor": _analytics_hex_rgba(color, 0.18) if fill else color,
+        "pointBackgroundColor": "#ffffff",
+        "pointBorderColor": color,
+        "pointBorderWidth": 2,
+        "pointRadius": 5,
+        "pointHoverRadius": 7,
+        "tension": 0.35,
+        "fill": fill,
+    }
+
+
 @teacher_required
 def subject_analytics(request):
     teacher = request.teacher
     subject_id_raw = request.GET.get("subject", "").strip()
     terminal = request.GET.get("terminal", "all")
+    analysis_mode = request.GET.get("analysis_mode", "bulk")
+    class_section_raw = request.GET.get("class_section", "").strip()
+    student_id_raw = request.GET.get("student_id", "").strip()
 
-    subject_id = None
-    if subject_id_raw.isdigit():
-        subject_id = int(subject_id_raw)
+    if analysis_mode not in ("bulk", "single"):
+        analysis_mode = "bulk"
+
+    subject_id = int(subject_id_raw) if subject_id_raw.isdigit() else None
+    student_id = int(student_id_raw) if student_id_raw.isdigit() else None
 
     teacher_subjects = teacher.subjects.all()
     teacher_students = teacher.students.all()
     all_subjects = list(teacher_subjects.order_by("name"))
+    terminals = ["1st", "2nd", "3rd", "Final"]
+    run_terminals = terminals if terminal == "all" else (
+        [terminal] if terminal in terminals else terminals
+    )
 
-    base_qs = Result.objects.filter(
-        student__in=teacher_students, subject__in=teacher_subjects
+    class_sections = []
+    seen_sections = set()
+    for st in teacher_students.order_by("student_class", "section", "name"):
+        key = (st.student_class, st.section)
+        if key in seen_sections:
+            continue
+        seen_sections.add(key)
+        class_sections.append({
+            "value": f"{st.student_class}|{st.section}",
+            "label": f"Class {st.student_class} — Section {st.section}",
+        })
+
+    available_students = list(
+        teacher_students.order_by("name").values(
+            "id", "name", "roll_number", "student_class", "section"
+        )
+    )
+
+    scope_students = teacher_students
+    selected_student = None
+    if analysis_mode == "bulk" and class_section_raw and "|" in class_section_raw:
+        cls, sec = class_section_raw.split("|", 1)
+        scope_students = scope_students.filter(student_class=cls, section=sec)
+    elif analysis_mode == "single":
+        if student_id is not None:
+            selected_student = teacher_students.filter(id=student_id).first()
+            scope_students = (
+                teacher_students.filter(id=student_id)
+                if selected_student else teacher_students.none()
+            )
+        else:
+            scope_students = teacher_students.none()
+
+    filtered_qs = Result.objects.filter(
+        student__in=scope_students,
+        subject__in=teacher_subjects,
     ).select_related("student", "subject")
     if subject_id is not None:
-        base_qs = base_qs.filter(subject_id=subject_id)
+        filtered_qs = filtered_qs.filter(subject_id=subject_id)
+
+    stats_qs = filtered_qs
+    if terminal != "all" and terminal in terminals:
+        stats_qs = stats_qs.filter(terminal=terminal)
 
     pct_list = []
-    for r in base_qs:
-        if r.total_marks > 0:
-            pct_list.append(r.marks_obtained / r.total_marks * 100)
+    for r in stats_qs:
+        pct = _analytics_result_pct(r)
+        if pct is not None:
+            pct_list.append(pct)
 
     total = len(pct_list)
     avg_pct = round(sum(pct_list) / total, 1) if total else 0
@@ -6583,85 +7084,198 @@ def subject_analytics(request):
     below_40 = sum(1 for p in pct_list if p < 40)
 
     insight_lines = []
+    mode_label = "class section" if analysis_mode == "bulk" else "student"
+    if analysis_mode == "single" and selected_student:
+        insight_lines.append(
+            f"Analysing {selected_student.name} "
+            f"(Class {selected_student.student_class}-{selected_student.section})."
+        )
+    elif analysis_mode == "bulk" and class_section_raw:
+        insight_lines.append(f"Bulk analysis for selected class section ({mode_label}).")
     if below_40 > 0:
         s = "s" if below_40 > 1 else ""
         insight_lines.append(
-            f"{below_40} student{s} scored below 40% — consider a remedial session."
+            f"{below_40} result{s} below 40% — consider targeted intervention."
         )
     if avg_pct >= 80:
-        insight_lines.append(f"Excellent class average at {avg_pct}%.")
+        insight_lines.append(f"Excellent average at {avg_pct}%.")
     elif avg_pct >= 70:
-        insight_lines.append(f"Good progress — class average is {avg_pct}%.")
+        insight_lines.append(f"Good progress — average is {avg_pct}%.")
     elif avg_pct >= 50:
-        insight_lines.append(f"Class average is {avg_pct}%. Focus on weaker students.")
+        insight_lines.append(f"Average is {avg_pct}%. Focus on weaker performers.")
     elif total:
-        insight_lines.append(f"Class average is {avg_pct}%. Needs attention.")
-
-    terminals = ["1st", "2nd", "3rd", "Final"]
-    run_terminals = terminals if terminal == "all" else (
-        [terminal] if terminal in terminals else terminals
-    )
+        insight_lines.append(f"Average is {avg_pct}%. Needs attention.")
 
     chart_subjects = all_subjects
     if subject_id is not None:
         chart_subjects = [s for s in all_subjects if s.id == subject_id]
 
-    def _avg_pct(qs):
-        values = [
-            r.marks_obtained / r.total_marks * 100
-            for r in qs if r.total_marks > 0
-        ]
-        return round(sum(values) / len(values), 1) if values else None
-
-    subject_colors = [
-        "#667eea", "#10b981", "#f59e0b", "#ef4444",
-        "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
-    ]
-    term_colors = {
-        "1st": "#667eea", "2nd": "#10b981", "3rd": "#f59e0b", "Final": "#ef4444",
-    }
+    subject_colors = ANALYTICS_CHART_COLORS
+    term_colors = ANALYTICS_TERMINAL_COLORS
 
     terminal_wise_datasets = []
     for i, subj in enumerate(chart_subjects):
         color = subject_colors[i % len(subject_colors)]
-        terminal_wise_datasets.append({
-            "label": subj.name,
-            "data": [
-                _avg_pct(base_qs.filter(subject=subj, terminal=t))
-                for t in run_terminals
-            ],
-            "borderColor": color,
-            "backgroundColor": color,
-            "pointBackgroundColor": color,
-            "pointBorderColor": color,
-            "tension": 0.35,
-            "fill": False,
-        })
+        terminal_wise_datasets.append(
+            _analytics_line_dataset(
+                subj.name,
+                [
+                    _analytics_avg_pct(filtered_qs.filter(subject=subj, terminal=t))
+                    for t in run_terminals
+                ],
+                color,
+            )
+        )
 
     subject_wise_datasets = []
     for t in run_terminals:
-        color = term_colors.get(t, "#667eea")
-        subject_wise_datasets.append({
-            "label": f"{t} Terminal",
+        color = term_colors.get(t, subject_colors[len(subject_wise_datasets) % len(subject_colors)])
+        subject_wise_datasets.append(
+            _analytics_line_dataset(
+                f"{t} Terminal",
+                [
+                    _analytics_avg_pct(filtered_qs.filter(subject=subj, terminal=t))
+                    for subj in chart_subjects
+                ],
+                color,
+            )
+        )
+
+    dist_bins = [
+        ("0–39% (Fail)", 0, 39),
+        ("40–59%", 40, 59),
+        ("60–79%", 60, 79),
+        ("80–100%", 80, 100),
+    ]
+    distribution_chart = {
+        "labels": [b[0] for b in dist_bins],
+        "datasets": [{
+            "label": "Results",
             "data": [
-                _avg_pct(base_qs.filter(subject=subj, terminal=t))
-                for subj in chart_subjects
+                sum(1 for p in pct_list if lo <= p <= hi)
+                for _, lo, hi in dist_bins
             ],
-            "borderColor": color,
-            "backgroundColor": color,
-            "pointBackgroundColor": color,
-            "pointBorderColor": color,
-            "tension": 0.35,
-            "fill": False,
-        })
+            "backgroundColor": ["#ef4444", "#f59e0b", "#10b981", "#6366f1"],
+            "borderRadius": 6,
+        }],
+    }
+
+    term_indices = list(range(1, len(run_terminals) + 1))
+    if analysis_mode == "single" and selected_student:
+        student_pcts = [
+            _analytics_avg_pct(
+                filtered_qs.filter(student=selected_student, terminal=t)
+            )
+            for t in run_terminals
+        ]
+        reg_line, reg_slope = _analytics_linear_regression(term_indices, student_pcts)
+        regression_chart = {
+            "labels": run_terminals,
+            "scatter": [{"x": i, "y": y} for i, y in zip(term_indices, student_pcts) if y is not None],
+            "regression": reg_line,
+            "slope": reg_slope,
+            "title": f"{selected_student.name} — terminal progression",
+        }
+        class_avg_by_term = [
+            _analytics_avg_pct(
+                Result.objects.filter(
+                    student__in=teacher_students,
+                    subject__in=teacher_subjects,
+                    terminal=t,
+                )
+            )
+            for t in run_terminals
+        ]
+        comparison_chart = {
+            "labels": run_terminals,
+            "datasets": [
+                {
+                    "label": selected_student.name,
+                    "data": student_pcts,
+                    "backgroundColor": _analytics_hex_rgba("#6366f1", 0.85),
+                    "borderColor": "#6366f1",
+                    "borderWidth": 2,
+                    "borderRadius": 6,
+                },
+                {
+                    "label": "Class average",
+                    "data": class_avg_by_term,
+                    "backgroundColor": _analytics_hex_rgba("#f59e0b", 0.85),
+                    "borderColor": "#f59e0b",
+                    "borderWidth": 2,
+                    "borderRadius": 6,
+                },
+            ],
+        }
+        subject_breakdown_chart = {
+            "labels": [s.name for s in chart_subjects],
+            "datasets": [{
+                "label": "Latest terminal %" if terminal == "all" else f"{terminal} Terminal %",
+                "data": [
+                    _analytics_avg_pct(
+                        filtered_qs.filter(
+                            student=selected_student,
+                            subject=subj,
+                            terminal=run_terminals[-1] if terminal == "all" else terminal,
+                        )
+                    )
+                    for subj in chart_subjects
+                ],
+                "backgroundColor": [
+                    subject_colors[i % len(subject_colors)] for i in range(len(chart_subjects))
+                ],
+            }],
+        }
+    else:
+        class_avg_by_term = [
+            _analytics_avg_pct(filtered_qs.filter(terminal=t))
+            for t in run_terminals
+        ]
+        reg_line, reg_slope = _analytics_linear_regression(term_indices, class_avg_by_term)
+        regression_chart = {
+            "labels": run_terminals,
+            "scatter": [{"x": i, "y": y} for i, y in zip(term_indices, class_avg_by_term) if y is not None],
+            "regression": reg_line,
+            "slope": reg_slope,
+            "title": "Class average — regression trend",
+        }
+        comparison_chart = None
+        subject_breakdown_chart = {
+            "labels": [s.name for s in chart_subjects],
+            "datasets": [{
+                "label": "Section average %",
+                "data": [
+                    _analytics_avg_pct(
+                        filtered_qs.filter(
+                            subject=subj,
+                            terminal=run_terminals[-1] if terminal == "all" else terminal,
+                        )
+                    )
+                    for subj in chart_subjects
+                ],
+                "backgroundColor": [
+                    subject_colors[i % len(subject_colors)] for i in range(len(chart_subjects))
+                ],
+            }],
+        }
+
+    pass_fail_chart = {
+        "labels": ["Pass (≥40%)", "Fail (<40%)"],
+        "datasets": [{
+            "data": [pass_count, total - pass_count],
+            "backgroundColor": ["#10b981", "#ef4444"],
+            "borderWidth": 0,
+        }],
+    }
 
     trender = {}
-    for r in base_qs.order_by("student__name", "terminal"):
+    for r in filtered_qs.order_by("student__name", "terminal"):
         sid = r.student.id
         if sid not in trender:
             trender[sid] = {"student": r.student, "marks_by_term": {}}
-        pct = round(r.marks_obtained / r.total_marks * 100, 1) if r.total_marks > 0 else 0
-        trender[sid]["marks_by_term"][r.terminal] = pct
+        pct = _analytics_result_pct(r)
+        if pct is not None:
+            trender[sid]["marks_by_term"][r.terminal] = pct
 
     trend_rows = []
     for sid in sorted(trender, key=lambda s: trender[s]["student"].name):
@@ -6685,6 +7299,12 @@ def subject_analytics(request):
         "subject_obj": Subject.objects.filter(id=subject_id).first() if subject_id is not None else None,
         "subject_id": subject_id_raw,
         "terminal": terminal,
+        "analysis_mode": analysis_mode,
+        "class_section": class_section_raw,
+        "student_id": student_id_raw,
+        "selected_student": selected_student,
+        "class_sections": class_sections,
+        "available_students": available_students,
         "run_terminals": run_terminals,
         "total": total,
         "avg_pct": avg_pct,
@@ -6705,6 +7325,21 @@ def subject_analytics(request):
         "subject_wise_chart": {
             "labels": [s.name for s in chart_subjects],
             "datasets": subject_wise_datasets,
+        },
+        "distribution_chart": distribution_chart,
+        "regression_chart": regression_chart,
+        "pass_fail_chart": pass_fail_chart,
+        "comparison_chart": comparison_chart,
+        "subject_breakdown_chart": subject_breakdown_chart,
+        "chart_color_legend": {
+            "subjects": [
+                {"name": s.name, "color": subject_colors[i % len(subject_colors)]}
+                for i, s in enumerate(chart_subjects)
+            ],
+            "terminals": [
+                {"name": f"{t} Terminal", "color": term_colors.get(t, subject_colors[i % len(subject_colors)])}
+                for i, t in enumerate(run_terminals)
+            ],
         },
     })
 
