@@ -106,6 +106,154 @@
             line-height: 1.5;
         }
         .highlight-banner i { color: var(--ds-accent); font-size: 1.15rem; margin-top: 0.1rem; }
+
+        /* ── Enhanced Insights Styles ─────────────────────────────────────── */
+        .perf-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            font-size: var(--ds-text-xs);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .perf-badge.excellent { background: #d1fae5; color: #065f46; }
+        .perf-badge.good { background: #dbeafe; color: #1e40af; }
+        .perf-badge.satisfactory { background: #fef3c7; color: #92400e; }
+        .perf-badge.needs-improvement { background: #fed7aa; color: #9a3412; }
+        .perf-badge.critical { background: #fecaca; color: #991b1b; }
+        .perf-badge.neutral { background: var(--bg-secondary); color: var(--text-muted); }
+
+        .insight-card {
+            background: var(--bg-card, #1e293b);
+            border: 1px solid var(--border-color);
+            border-radius: var(--ds-radius-sm);
+            padding: 1.15rem 1.25rem;
+            margin-bottom: 0.85rem;
+        }
+        .insight-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin-bottom: 0.55rem;
+        }
+        .insight-card-header h4 {
+            font-size: var(--ds-text-sm);
+            font-weight: 600;
+            margin: 0;
+            color: var(--text-primary);
+        }
+        .insight-card-body {
+            font-size: var(--ds-text-sm);
+            line-height: 1.55;
+            color: var(--text-secondary);
+        }
+        .insight-card-body i { margin-right: 0.3rem; opacity: 0.8; }
+        .insight-card-body strong { color: var(--text-primary); }
+
+        .insight-strength { border-left: 3px solid var(--ds-success); }
+        .insight-weakness { border-left: 3px solid var(--ds-danger); }
+        .insight-trend { border-left: 3px solid var(--ds-accent); }
+        .insight-compare { border-left: 3px solid #f59e0b; }
+        .insight-recommend { border-left: 3px solid #8b5cf6; }
+        .insight-milestone { border-left: 3px solid #06b6d4; }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.85rem;
+        }
+        @media (min-width: 640px) {
+            .insights-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .milestone-chip {
+            display: inline-block;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            background: var(--ds-accent-soft);
+            color: var(--text-primary);
+            font-size: var(--ds-text-xs);
+            font-weight: 500;
+            margin: 0.2rem;
+            border: 1px solid var(--border-color);
+            line-height: 1.4;
+        }
+
+        .grade-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.35rem;
+        }
+
+        .subject-spotlight-card {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 0.85rem;
+            border-radius: var(--ds-radius-sm);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Performance banner gradient overlays */
+        .perf-banner {
+            position: relative;
+            padding: 1.25rem 1.5rem;
+            border-radius: var(--ds-radius-sm);
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        .perf-banner::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            opacity: 0.12;
+        }
+        .perf-banner.excellent::before { background: linear-gradient(135deg, #10b981, #6366f1); }
+        .perf-banner.good::before { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+        .perf-banner.satisfactory::before { background: linear-gradient(135deg, #f59e0b, #f97316); }
+        .perf-banner.needs-improvement::before { background: linear-gradient(135deg, #f97316, #ef4444); }
+        .perf-banner.critical::before { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .perf-banner.neutral::before { background: linear-gradient(135deg, #64748b, #475569); }
+
+        .perf-banner-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .perf-banner-icon {
+            font-size: 2.2rem;
+            opacity: 0.85;
+        }
+        .perf-banner-text h3 {
+            margin: 0 0 0.25rem;
+            font-size: var(--ds-text-base);
+            font-weight: 700;
+        }
+        .perf-banner-text p {
+            margin: 0;
+            font-size: var(--ds-text-sm);
+            opacity: 0.85;
+            line-height: 1.45;
+        }
+
+        .recommendation-item {
+            display: flex;
+            gap: 0.7rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .recommendation-item:last-child { border-bottom: none; }
+        .recommendation-item .rec-icon { font-size: 1.1rem; flex-shrink: 0; }
     </style>
 </head>
 <body class="app-page">
@@ -115,6 +263,7 @@
             <a href="/dashboard/"><i class="fas fa-th-large"></i> Dashboard</a>
             <a href="{% url 'core:student_analytics' %}" class="is-active"><i class="fas fa-chart-line"></i> Analytics</a>
             <a href="{% url 'core:gpa_forecasting' %}"><i class="fas fa-bullseye"></i> GPA Forecast</a>
+            <a href="{% url 'core:student_my_mark_sheet' %}"><i class="fas fa-file-alt"></i> My MarkSheet</a>
             <a href="/logout/"><i class="fas fa-sign-out-alt"></i> Logout</a>
             <button class="theme-toggle ds-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
                 <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
@@ -128,7 +277,7 @@
 
         <div class="page-hero fade-in">
             <h1 class="page-title"><i class="fas fa-chart-line" style="color:var(--ds-accent);"></i> My Analytics</h1>
-            <p class="page-subtitle">{{ student.name }} · Class {{ student.student_class }} — Section {{ student.section }} · Detailed marks analysis &amp; trends</p>
+            <p class="page-subtitle">{{ student.name }} · Class {{ student.student_class }} — Section {{ student.section }} · Detailed marks analysis & trends</p>
         </div>
 
         <section class="section-card fade-in">
@@ -192,14 +341,174 @@
             </div>
         </div>
 
+        {# ─── ENHANCED INSIGHTS SECTION ─── #}
+        {% if enriched_insights %}
+        <section class="section-card fade-in" id="insights">
+            <p class="section-label">Insights & Alerts</p>
+            <h2 class="section-title" style="margin-bottom:0.75rem;">
+                <i class="fas fa-lightbulb" style="color:var(--ds-accent);"></i> 
+                Rule-based recommendations
+            </h2>
+
+            {# ── Performance Banner ── #}
+            {% with perf=enriched_insights.performance %}
+            {% if perf %}
+            <div class="perf-banner {{ perf.badge }}">
+                <div class="perf-banner-content">
+                    <div class="perf-banner-icon"><i class="fas {{ perf.icon }}"></i></div>
+                    <div class="perf-banner-text">
+                        <h3>{{ perf.label }} — {{ perf.avg_pct }}% Average</h3>
+                        <p>{{ perf.description }}</p>
+                    </div>
+                    <span class="perf-badge {{ perf.badge }}" style="margin-left:auto;">
+                        <i class="fas {{ perf.icon }}"></i> {{ perf.label }}
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {# ── Subject Spotlight: Strength & Weakness ── #}
+            {% if enriched_insights.subject_spotlight %}
+            <div class="insights-grid" style="margin-bottom:0.85rem;">
+                {% for spot in enriched_insights.subject_spotlight %}
+                <div class="subject-spotlight-card insight-{{ spot.type }}">
+                    <span style="font-size:1.15rem;flex-shrink:0;"><i class="fas {{ spot.icon }}"></i></span>
+                    <div>
+                        <div style="font-size:var(--ds-text-sm);line-height:1.45;">{{ spot.message|safe }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {# ── Grade Breakdown Chips ── #}
+            {% if enriched_insights.grade_breakdown %}
+            <div style="margin-bottom:0.85rem;display:flex;flex-wrap:wrap;gap:0.5rem;">
+                {% for gb in enriched_insights.grade_breakdown %}
+                <span class="milestone-chip">
+                    <span class="grade-dot" style="background:{{ gb.color }};"></span>
+                    {{ gb.label }}: <strong>{{ gb.count }}</strong>
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {# ── Trend Analysis ── #}
+            {% if enriched_insights.trend_analysis %}
+            {% for trend in enriched_insights.trend_analysis %}
+            <div class="insight-card insight-trend">
+                <div class="insight-card-header">
+                    <i class="fas {{ trend.icon }}" style="color:var(--ds-accent);"></i>
+                    <h4>Trend Analysis</h4>
+                </div>
+                <div class="insight-card-body">
+                    {{ trend.message|safe }}
+                    {% if trend.delta %}
+                    <span style="display:inline-block;margin-left:0.5rem;padding:0.15rem 0.5rem;border-radius:999px;font-size:var(--ds-text-xs);font-weight:700;
+                        {% if trend.delta > 0 %}background:#d1fae5;color:#065f46;{% else %}background:#fecaca;color:#991b1b;{% endif %}">
+                        {{ trend.delta }}{% if trend.delta > 0 %}+{% endif %}%
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {# ── Consistency Score ── #}
+            {% if enriched_insights.consistency %}
+            {% with con=enriched_insights.consistency %}
+            <div class="insight-card insight-trend">
+                <div class="insight-card-header">
+                    <i class="fas {{ con.icon }}" style="color:{{ con.color }};"></i>
+                    <h4>Consistency Score</h4>
+                </div>
+                <div class="insight-card-body">
+                    <span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:var(--ds-text-xs);font-weight:700;background:{{ con.color }}20;color:{{ con.color }};">
+                        {{ con.label }} (±{{ con.std_dev }}%)
+                    </span>
+                    &nbsp; {{ con.description }}
+                </div>
+            </div>
+            {% endwith %}
+            {% endif %}
+
+            {# ── Comparative (vs Section) ── #}
+            {% if enriched_insights.comparative %}
+            {% for comp in enriched_insights.comparative %}
+            <div class="insight-card insight-compare">
+                <div class="insight-card-header">
+                    <i class="fas fa-users" style="color:#f59e0b;"></i>
+                    <h4>Comparative Analysis</h4>
+                </div>
+                <div class="insight-card-body">
+                    {{ comp.message|safe }}
+                    {% if comp.diff %}
+                    <span style="display:inline-block;margin-left:0.5rem;padding:0.15rem 0.5rem;border-radius:999px;font-size:var(--ds-text-xs);font-weight:700;
+                        {% if comp.diff > 0 %}background:#d1fae5;color:#065f46;{% else %}background:#fecaca;color:#991b1b;{% endif %}">
+                        {% if comp.diff > 0 %}+{% endif %}{{ comp.diff }}%
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {# ── Milestones ── #}
+            {% if enriched_insights.milestones %}
+            <div class="insight-card insight-milestone">
+                <div class="insight-card-header">
+                    <i class="fas fa-flag-checkered" style="color:#06b6d4;"></i>
+                    <h4>Achievements & Milestones</h4>
+                </div>
+                <div class="insight-card-body">
+                    {% for m in enriched_insights.milestones %}
+                    <span class="milestone-chip">{{ m|safe }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# ── Actionable Recommendations ── #}
+            {% if enriched_insights.recommendations %}
+            <div class="insight-card insight-recommend">
+                <div class="insight-card-header">
+                    <i class="fas fa-clipboard-list" style="color:#8b5cf6;"></i>
+                    <h4>Personalized Recommendations</h4>
+                </div>
+                <div class="insight-card-body">
+                    {% for rec in enriched_insights.recommendations %}
+                    <div class="recommendation-item">
+                        <div class="rec-icon">{{ rec|safe }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# ── Summary Banner ── #}
+            {% if enriched_insights.summary %}
+            <div class="highlight-banner" style="margin-top:0.5rem;">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    {% for s in enriched_insights.summary %}
+                    {{ s|safe }}{% if not forloop.last %} · {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% else %}
+        {# ── Fallback to original insight lines ── #}
         {% if insight_lines %}
         <section class="section-card fade-in">
-            <p class="section-label">Insights &amp; Alerts</p>
+            <p class="section-label">Insights & Alerts</p>
             <h2 class="section-title" style="margin-bottom:0.75rem;">Rule-based recommendations</h2>
             {% for line in insight_lines %}
             <div class="insight-pill"><i class="fas fa-lightbulb" style="margin-right:0.35rem;opacity:0.7;"></i>{{ line }}</div>
             {% endfor %}
         </section>
+        {% endif %}
         {% endif %}
 
         <section class="section-card fade-in">

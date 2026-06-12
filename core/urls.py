@@ -46,6 +46,9 @@ urlpatterns = [
     path('select-mark-sheet/', views.select_mark_sheet, name='select_mark_sheet'),
     path('marksheet-verify/<str:doc_id>/', views.marksheet_verify, name='marksheet_verify'),
     path('api/marksheet-verify/<str:doc_id>/', views.marksheet_verify_api, name='marksheet_verify_api'),
+    # ── Student My MarkSheet (read-only, auto-resolves student) ──────────────
+    path('my-marksheet/', views.student_my_mark_sheet, name='student_my_mark_sheet'),
+    path('my-marksheet/<str:terminal>/', views.student_my_mark_sheet, name='student_my_mark_sheet_terminal'),
 
     # ── Student Analysis ──────────────────────────────────────────────────────
     path('student-analysis/', views.student_analysis, name='student_analysis'),

@@ -389,7 +389,285 @@ def student_gpa_forecasting(request):
     return render(request, 'core/dashboard/gpa_forecasting.html', context)
 
 
-@login_required
+def _build_enhanced_insights(student, filtered_qs, stats_qs, pct_list, avg_pct, highest_pct, lowest_pct, pass_rate, pass_count, total, below_40, terminal, run_terminals, chart_subjects):
+    """
+    Build rich, categorized insight bundles for the student analytics page.
+    Returns a dict of insight groups that the template can render.
+    """
+    from math import floor
+
+    insights = {
+        'summary': [],
+        'performance': {},
+        'subject_spotlight': [],
+        'trend_analysis': [],
+        'comparative': [],
+        'recommendations': [],
+        'grade_breakdown': [],
+        'milestones': [],
+        'consistency': {},
+    }
+
+    # ── 1. Summary Banner ──────────────────────────────────────────────────
+    insights['summary'].append(
+        f"Analysing <strong>{student.name}</strong> (Class {student.student_class} — Section {student.section})"
+    )
+
+    # ── 2. Performance Classification ──────────────────────────────────────
+    if total == 0:
+        insights['performance'] = {
+            'label': 'No Data',
+            'badge': 'neutral',
+            'icon': 'fa-chart-line',
+            'description': 'No marks recorded yet. Check back after results are published.',
+            'avg_pct': 0,
+        }
+    else:
+        if avg_pct >= 90:
+            label, badge, icon = 'Outstanding', 'excellent', 'fa-trophy'
+            desc = f"Exceptional performance! You're in the top tier. Keep up the disciplined approach."
+        elif avg_pct >= 80:
+            label, badge, icon = 'Excellent', 'excellent', 'fa-star'
+            desc = f"Strong performance with an average of {avg_pct}%. You're doing great — consistency is your strength."
+        elif avg_pct >= 70:
+            label, badge, icon = 'Good', 'good', 'fa-thumbs-up'
+            desc = f"Solid performance averaging {avg_pct}%. With a little more effort, you can push into the excellent range."
+        elif avg_pct >= 60:
+            label, badge, icon = 'Satisfactory', 'satisfactory', 'fa-check'
+            desc = f"Average of {avg_pct}% — satisfactory but there's room for growth. Identify weak spots and work on them."
+        elif avg_pct >= 50:
+            label, badge, icon = 'Needs Improvement', 'needs-improvement', 'fa-exclamation-circle'
+            desc = f"Your average of {avg_pct}% is below the ideal range. A focused study plan can make a big difference."
+        else:
+            label, badge, icon = 'Critical', 'critical', 'fa-times-circle'
+            desc = f"Average of {avg_pct}% needs urgent attention. Consider speaking with your teachers and revisiting fundamentals."
+
+        insights['performance'] = {
+            'label': label,
+            'badge': badge,
+            'icon': icon,
+            'description': desc,
+            'avg_pct': avg_pct,
+        }
+
+    # ── 3. Subject Spotlight (Best & Worst Subjects) ───────────────────────
+    subject_averages = {}
+    for subj in chart_subjects:
+        subj_results = stats_qs.filter(subject=subj)
+        subj_avg = _analytics_avg_pct(subj_results)
+        if subj_avg is not None:
+            subject_averages[subj] = subj_avg
+
+    if subject_averages:
+        sorted_subjects = sorted(subject_averages.items(), key=lambda x: x[1], reverse=True)
+        best_subj, best_avg = sorted_subjects[0]
+        worst_subj, worst_avg = sorted_subjects[-1]
+
+        if len(sorted_subjects) >= 2:
+            gap = round(best_avg - worst_avg, 1)
+            insights['subject_spotlight'].append({
+                'type': 'strength',
+                'icon': 'fa-arrow-up',
+                'subject': best_subj,
+                'pct': best_avg,
+                'message': f"<strong>Best performer:</strong> {best_subj.name} ({best_avg}%) — keep it strong!",
+            })
+            insights['subject_spotlight'].append({
+                'type': 'weakness',
+                'icon': 'fa-arrow-down',
+                'subject': worst_subj,
+                'pct': worst_avg,
+                'message': f"<strong>Needs focus:</strong> {worst_subj.name} ({worst_avg}%) — {gap}% gap from your best subject.",
+            })
+
+        # Count subjects by performance bands
+        excellent = sum(1 for _, v in subject_averages.items() if v >= 80)
+        good = sum(1 for _, v in subject_averages.items() if 60 <= v < 80)
+        weak = sum(1 for _, v in subject_averages.items() if v < 60)
+        total_subjects = len(subject_averages)
+        insights['grade_breakdown'] = [
+            {'label': 'Excellent (80%+)', 'count': excellent, 'color': '#10b981'},
+            {'label': 'Good (60-79%)', 'count': good, 'color': '#f59e0b'},
+            {'label': 'Needs Work (<60%)', 'count': weak, 'color': '#ef4444'},
+        ]
+
+    # ── 4. Trend & Consistency Analysis ────────────────────────────────────
+    if len(run_terminals) >= 2 and total > 0:
+        term_averages = []
+        for t in run_terminals:
+            ta = _analytics_avg_pct(stats_qs.filter(terminal=t))
+            if ta is not None:
+                term_averages.append((t, ta))
+
+        if len(term_averages) >= 2:
+            first_avg = term_averages[0][1]
+            last_avg = term_averages[-1][1]
+            delta = round(last_avg - first_avg, 1)
+
+            if delta > 5:
+                trend_icon = 'fa-rocket'
+                trend_msg = f"<strong>Upward trend:</strong> +{delta}% from {term_averages[0][0]} to {term_averages[-1][0]} — impressive improvement!"
+                recommendations_trend = "You're on a great trajectory. Set even higher targets for next term."
+            elif delta > 2:
+                trend_icon = 'fa-arrow-up'
+                trend_msg = f"<strong>Slight improvement:</strong> +{delta}% across terminals. Small gains add up!"
+                recommendations_trend = "Keep pushing — consistency in revision will accelerate your growth."
+            elif delta > -2:
+                trend_icon = 'fa-equals'
+                trend_msg = f"<strong>Stable performance:</strong> {delta}% change across terminals. Consistency is good, but challenge yourself more."
+                recommendations_trend = "Try diversifying study techniques to break into the next level."
+            elif delta > -5:
+                trend_icon = 'fa-arrow-down'
+                trend_msg = f"<strong>Mild decline:</strong> {delta}% from {term_averages[0][0]} to {term_averages[-1][0]}. Review what changed."
+                recommendations_trend = "Identify topics that felt harder this term and allocate extra time to them."
+            else:
+                trend_icon = 'fa-exclamation-triangle'
+                trend_msg = f"<strong>Significant decline:</strong> {delta}% drop. Don't worry — this is a signal to reset your study strategy."
+                recommendations_trend = "Talk to your teachers, form a study group, and create a revision timetable."
+
+            insights['trend_analysis'].append({
+                'icon': trend_icon,
+                'message': trend_msg,
+                'delta': delta,
+                'first_term': term_averages[0][0],
+                'last_term': term_averages[-1][0],
+                'first_avg': first_avg,
+                'last_avg': last_avg,
+            })
+
+            # ── 5. Consistency Score ───────────────────────────────────────
+            all_pcts_for_consistency = []
+            for t in run_terminals:
+                for r in stats_qs.filter(terminal=t):
+                    p = _analytics_result_pct(r)
+                    if p is not None:
+                        all_pcts_for_consistency.append(p)
+
+            if all_pcts_for_consistency:
+                mean_pct = sum(all_pcts_for_consistency) / len(all_pcts_for_consistency)
+                variance = sum((x - mean_pct) ** 2 for x in all_pcts_for_consistency) / len(all_pcts_for_consistency)
+                std_dev = round(variance ** 0.5, 1)
+
+                if std_dev < 8:
+                    cons_label = 'Very Consistent'
+                    cons_icon = 'fa-check-circle'
+                    cons_color = '#10b981'
+                    cons_desc = f"Your scores vary by only ±{std_dev}% on average. Remarkably steady performance!"
+                elif std_dev < 15:
+                    cons_label = 'Moderately Varied'
+                    cons_icon = 'fa-adjust'
+                    cons_color = '#f59e0b'
+                    cons_desc = f"Score variation of ±{std_dev}% — some subjects are stronger than others. Normal and identifiable."
+                else:
+                    cons_label = 'Highly Varied'
+                    cons_icon = 'fa-chart-bar'
+                    cons_color = '#ef4444'
+                    cons_desc = f"Scores swing ±{std_dev}% — indicates strong and weak areas. Great opportunity to target improvement!"
+
+                insights['consistency'] = {
+                    'label': cons_label,
+                    'icon': cons_icon,
+                    'color': cons_color,
+                    'std_dev': std_dev,
+                    'description': cons_desc,
+                }
+
+    # ── 6. Comparative Insight (vs Section) ───────────────────────────────
+    section_results = Result.objects.filter(
+        student__student_class=student.student_class,
+        student__section=student.section,
+    )
+    section_overall = _analytics_avg_pct(section_results)
+    if section_overall and avg_pct > 0:
+        diff_to_section = round(avg_pct - section_overall, 1)
+        if diff_to_section > 5:
+            comp_msg = f"<strong>Above class average:</strong> You're {diff_to_section}% ahead of your section average ({section_overall}%) — leading the class!"
+        elif diff_to_section > 0:
+            comp_msg = f"<strong>Slightly above average:</strong> {diff_to_section}% above your section average ({section_overall}%)."
+        elif diff_to_section > -5:
+            comp_msg = f"<strong>Close to average:</strong> Just {abs(diff_to_section)}% below your section average ({section_overall}%). You're in the pack!"
+        else:
+            comp_msg = f"<strong>Below class average:</strong> {abs(diff_to_section)}% behind section average ({section_overall}%). Time to level up!"
+        insights['comparative'].append({
+            'message': comp_msg,
+            'diff': diff_to_section,
+            'section_avg': section_overall,
+        })
+
+    # ── 7. Milestone Check ────────────────────────────────────────────────
+    milestones = []
+    if total > 0:
+        if pass_rate == 100:
+            milestones.append('🎯 <strong>Perfect pass rate</strong> — all results above 40%!')
+        if avg_pct >= 75:
+            milestones.append('🏆 <strong>Honours range</strong> — average ≥ 75% is commendable!')
+        if highest_pct >= 95:
+            milestones.append('💫 <strong>Near-perfect score</strong> of {}% in at least one subject!'.format(highest_pct))
+        if len(run_terminals) >= 2:
+            term_avgs = [_analytics_avg_pct(stats_qs.filter(terminal=t)) for t in run_terminals]
+            term_avgs = [v for v in term_avgs if v is not None]
+            if len(term_avgs) >= 2 and term_avgs[-1] > term_avgs[0]:
+                milestones.append('📈 <strong>Improvement streak</strong> — your performance trend is positive!')
+        if below_40 == 0 and total > 0:
+            milestones.append('✅ <strong>No failures</strong> — all results are at or above passing mark.')
+
+        # Above 80% in all subjects
+        if subject_averages and all(v >= 80 for v in subject_averages.values()):
+            milestones.append('🌟 <strong>All subjects excellent</strong> — every subject scored 80%+!')
+    insights['milestones'] = milestones
+
+    # ── 8. Generate Actionable Recommendations ────────────────────────────
+    recommendations = []
+    if total == 0:
+        recommendations.append('📚 No results to analyse yet — check back later.')
+    else:
+        # Based on weak subjects
+        if subject_averages:
+            weak_subjects = [(s, v) for s, v in sorted_subjects if v < 60]
+            if weak_subjects:
+                subj_names = ', '.join(s.name for s, _ in weak_subjects[:3])
+                recommendations.append(
+                    f"📖 <strong>Focus on:</strong> {subj_names}. Dedicate extra revision hours to these subjects."
+                )
+            strong_subjects = [(s, v) for s, v in sorted_subjects if v >= 80]
+            if strong_subjects:
+                subj_names = ', '.join(s.name for s, _ in strong_subjects[:2])
+                recommendations.append(
+                    f"🧠 <strong>Leverage strengths:</strong> Your study methods for {subj_names} are working — apply similar techniques to weaker areas."
+                )
+
+        # Based on consistency
+        if insights.get('consistency', {}).get('std_dev', 0) > 15:
+            recommendations.append(
+                "🎯 <strong>Balance your portfolio:</strong> High score variation suggests uneven preparation. Create a balanced study schedule."
+            )
+
+        # Based on trend
+        if insights.get('trend_analysis'):
+            trend_delta = insights['trend_analysis'][0]['delta']
+            if trend_delta < -3:
+                recommendations.append(
+                    "🔄 <strong>Reset & refocus:</strong> Your scores are declining. Try forming a study group or seeking tutor help."
+                )
+
+        # General study tips
+        if avg_pct < 60:
+            recommendations.append(
+                "⏰ <strong>Build a routine:</strong> Consistent daily study (even 1-2 hours) beats last-minute cramming."
+            )
+        elif avg_pct >= 80:
+            recommendations.append(
+                "🚀 <strong>Challenge yourself:</strong> Consider advanced topics, competitions, or mentoring classmates."
+            )
+        else:
+            recommendations.append(
+                "📅 <strong>Plan ahead:</strong> Use a study planner — break topics into weekly goals and track completion."
+            )
+
+    insights['recommendations'] = recommendations
+    return insights
+
+
 def student_analytics(request):
     """Detailed marks analytics and charts for the logged-in student."""
     if get_teacher_profile(request.user):
@@ -431,6 +709,23 @@ def student_analytics(request):
     pass_rate = round((pass_count / total) * 100, 1) if total else 0
     below_40 = sum(1 for p in pct_list if p < 40)
 
+    # ── Build chart subjects ──────────────────────────────────────────────
+    seen_subject_ids = set()
+    chart_subjects = []
+    for r in filtered_qs.order_by('subject__name'):
+        if r.subject_id not in seen_subject_ids:
+            seen_subject_ids.add(r.subject_id)
+            chart_subjects.append(r.subject)
+
+    # ── Build enhanced insights ───────────────────────────────────────────
+    enriched_insights = _build_enhanced_insights(
+        student, filtered_qs, stats_qs, pct_list,
+        avg_pct, highest_pct, lowest_pct,
+        pass_rate, pass_count, total, below_40,
+        terminal, run_terminals, chart_subjects,
+    )
+
+    # ── Keep original insight_lines for backward compatibility ────────────
     insight_lines = [
         f'Analysing {student.name} (Class {student.student_class} — Section {student.section}).',
     ]
@@ -447,6 +742,12 @@ def student_analytics(request):
         insight_lines.append(f'Average is {avg_pct}%. Focus on weaker subjects.')
     elif total:
         insight_lines.append(f'Average is {avg_pct}%. Needs attention — review study plan.')
+
+    available_subjects = list(
+        Subject.objects.filter(result__student=student).distinct().order_by('name')
+    )
+    subject_colors = ANALYTICS_CHART_COLORS
+    term_colors = ANALYTICS_TERMINAL_COLORS
 
     seen_subject_ids = set()
     chart_subjects = []
@@ -662,6 +963,7 @@ def student_analytics(request):
                 for i, t in enumerate(run_terminals)
             ],
         },
+        'enriched_insights': enriched_insights,
     })
 
 
@@ -1030,8 +1332,9 @@ def student_info(request, student_id):
 @login_required
 def marks_list(request):
     teacher = get_teacher_profile(request.user)
+    can_manage_marks = teacher is not None or _is_admin_user(request.user)
 
-    if teacher:
+    if teacher and not teacher.is_admin:
         # Teacher can only see marks for their subjects and students
         all_marks = Result.objects.filter(
             subject__in=teacher.subjects.all(),
@@ -1044,6 +1347,7 @@ def marks_list(request):
     return render(request, 'core/dashboard/marks_list.html', {
         'result': all_marks,
         'is_teacher': teacher is not None,
+        'can_manage_marks': can_manage_marks,
         'teacher': teacher,
     })
 
@@ -1079,7 +1383,7 @@ def edit_marks(request, mark_id):
         total_marks = float(data.get('total_marks', 100))
         
         # Teacher permissions check
-        if teacher:
+        if teacher and not teacher.is_admin:
             if not teacher.can_access_subject(result.subject):
                 return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
             if not teacher.students.filter(id=result.student.id).exists():
@@ -1090,6 +1394,8 @@ def edit_marks(request, mark_id):
                     'success': False, 
                     'message': f"Total marks must be {result.subject.total_marks} for {result.subject.name}"
                 }, status=400)
+        elif not teacher and not _is_admin_user(request.user):
+            return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
         
         result.marks_obtained = marks_obtained
         result.total_marks = total_marks
@@ -1294,13 +1600,15 @@ def delete_marks(request, mark_id):
         else:
             result = get_object_or_404(Result, id=mark_id)
 
-        # Check teacher permissions
+        # Check permissions
         teacher = get_teacher_profile(request.user)
-        if teacher:
+        if teacher and not teacher.is_admin:
             # Teacher can only delete marks for their subjects and students
             if not (teacher.can_access_subject(result.subject) and 
                    (teacher.students.filter(id=result.student.id).exists())):
                 return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
+        elif not teacher and not _is_admin_user(request.user):
+            return JsonResponse({'success': False, 'message': 'Access denied'}, status=403)
         
         student_name = result.student.name
         subject_name = result.subject.name
@@ -1473,6 +1781,97 @@ def mark_sheet(request, student_id=None, terminal=None):
     return render(request, 'core/dashboard/mark_sheet.html', context)
 
 
+@login_required
+def student_my_mark_sheet(request, terminal=None):
+    """Student's own read-only mark sheet — auto-resolves student, no edit capability."""
+    if get_teacher_profile(request.user):
+        messages.info(request, 'Use the Mark Sheet section from the teacher dashboard.')
+        return redirect('core:teacher_dashboard')
+
+    student = get_student_for_user(request.user)
+    if not student:
+        messages.error(request, 'Student profile not found.')
+        return redirect('core:dashboard')
+
+    # If no terminal provided, default to '1st'
+    # If no terminal provided, default to '1st'
+    if not terminal:
+        terminal = request.GET.get('terminal', '1st')
+    terminals = ['1st', '2nd', '3rd', 'Final']
+    if terminal not in terminals:
+        terminal = '1st'
+
+    results = Result.objects.filter(
+        student=student,
+        terminal=terminal
+    ).select_related('subject').order_by('subject__name')
+
+    # Check if there are any marks for the selected terminal
+    has_marks = results.exists()
+
+    from core.grading_utils import summarize_terminal_results
+    summary = summarize_terminal_results(results)
+    results_with_grades = summary['student_results']
+    total_subjects = summary['total_subjects']
+    total_marks_obtained = summary['total_marks_obtained']
+    total_marks = summary['total_marks']
+    overall_percentage = summary['overall_percentage']
+    gpa = summary['gpa']
+    all_passed = summary['all_passed']
+    overall_grade = summary['overall_grade']
+
+    from datetime import datetime
+    academic_year = datetime.now().year
+    terminal_slug = terminal.replace(' ', '-')
+
+    # Generate QR for verification (only if marks exist)
+    import qrcode
+    from io import BytesIO
+    import base64
+    from django.urls import reverse
+    doc_id = f"ACAD-{datetime.now().strftime('%Y%m%d')}-{student.id}-{terminal_slug}"
+    verify_url = request.build_absolute_uri(
+        reverse('core:marksheet_verify', kwargs={'doc_id': doc_id})
+    )
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(verify_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#0a0a0a", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    college_qr_code = base64.b64encode(buffer.getvalue()).decode()
+
+    verify_api_url = request.build_absolute_uri(
+        reverse('core:marksheet_verify_api', kwargs={'doc_id': doc_id})
+    )
+
+    context = {
+        'student': student,
+        'student_results': results_with_grades,
+        'selected_student': student,
+        'selected_terminal': terminal,
+        'terminals': terminals,
+        'total_subjects': total_subjects,
+        'total_marks_obtained': total_marks_obtained,
+        'total_marks': total_marks,
+        'overall_percentage': round(overall_percentage, 2),
+        'gpa': gpa,
+        'all_passed': all_passed,
+        'overall_grade': overall_grade,
+        'academic_year': f"{academic_year}-{academic_year + 1}",
+        'college_qr_code': college_qr_code,
+        'doc_id': doc_id,
+        'verify_url': verify_url,
+        'verify_api_url': verify_api_url,
+        'soch_college_url': 'https://sochcollege.edu.np/',
+        'is_teacher': False,
+        'is_student': True,
+        'readonly': True,  # Flag for template to hide edit controls
+        'has_marks': has_marks,  # Indicates whether marks exist for this terminal
+    }
+    return render(request, 'core/dashboard/mark_sheet.html', context)
+
+
 def marksheet_verify_api(request, doc_id):
     """Public JSON endpoint — live authenticity check for QR scans and on-page status."""
     payload = _marksheet_verify_payload(doc_id)
@@ -1503,8 +1902,18 @@ def marksheet_verify(request, doc_id):
 # SELECT STUDENT FOR MARK SHEET
 @login_required
 def select_mark_sheet(request):
-    """Student selection page for mark sheet generation"""
+    """Student selection page for mark sheet generation — teachers/admins only."""
     teacher = get_teacher_profile(request.user)
+
+    # Block students from accessing this page
+    if not teacher:
+        # Check if user is a student (has username matching a student)
+        student = get_student_for_user(request.user)
+        if student:
+            messages.error(request, "Access denied. Use 'My Mark Sheet' from your dashboard to view your marks.")
+            return redirect('core:student_my_mark_sheet')
+        messages.error(request, "Access denied. Teacher account required.")
+        return redirect('core:dashboard')
 
     if teacher and not teacher.is_admin:
         students_qs = teacher.students.all().order_by('name')

@@ -151,6 +151,7 @@
              {% if user.is_authenticated %}
                  <a href="/dashboard/"><i class="fas fa-th-large"></i> Dashboard</a>
                  <a href="{% url 'core:student_analytics' %}"><i class="fas fa-chart-line"></i> Analytics</a>
+                 <a href="{% url 'core:student_my_mark_sheet' %}"><i class="fas fa-file-alt"></i> My MarkSheet</a>
                  <a href="/logout/">Logout</a>
              {% else %}
                  <a href="/login/">Login</a>
