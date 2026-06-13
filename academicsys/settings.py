@@ -54,9 +54,9 @@ WSGI_APPLICATION = 'academicsys.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'acadstatmain',
-        'USER': 'samir',
-        'PASSWORD': 'pass',
+        'NAME': 'acadstat',
+        'USER': 'sajit',
+        'PASSWORD': 'acadstat',
         'HOST': 'localhost',
         'PORT': '5432',
     }
