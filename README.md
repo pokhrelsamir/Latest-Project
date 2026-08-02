@@ -1,6 +1,6 @@
 # AcadStat — Student Result and Performance Analysis System
 
-A comprehensive **AcadStat — Student Result and Performance Analysis System** built with **Django** for managing student records, academic performance,  examinations, and institutional reporting.
+A comprehensive **AcadStat — Student Result and Performance Analysis System** built with **Django** for managing students' records and study academic performance .
 
 ---
 
