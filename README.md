@@ -13,7 +13,6 @@ A comprehensive **AcadStat — Student Result and Performance Analysis System** 
 - 📝 Marks & Result Management
 - 📄 Student Mark Sheet Generation
 - 📊 Performance Analytics & Reports
-- 📅 Attendance Management
 - 📈 Dashboard with Statistics
 - ⚙️ Django Admin Panel
 
